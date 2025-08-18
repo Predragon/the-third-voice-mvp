@@ -3,7 +3,6 @@ Database Management Module for The Third Voice AI
 Supabase database wrapper with error handling and demo user support
 """
 
-import streamlit as st
 from datetime import datetime, timedelta
 from typing import List, Optional
 from supabase import create_client, Client
@@ -63,7 +62,7 @@ class DatabaseManager:
                 ))
             return contacts
         except Exception as e:
-            st.error(f"Error fetching contacts: {str(e)}")
+            print(f"Error fetching contacts: {str(e)}")
             return []
     
     def create_contact(self, name: str, context: str, user_id: str) -> Optional[Contact]:
@@ -91,7 +90,7 @@ class DatabaseManager:
                 )
             return None
         except Exception as e:
-            st.error(f"Error creating contact: {str(e)}")
+            print(f"Error creating contact: {str(e)}")
             return None
     
     def _create_demo_contact(self, name: str, context: str, user_id: str) -> Contact:
@@ -135,7 +134,7 @@ class DatabaseManager:
             response = self.supabase.table("messages").insert(message_data).execute()
             return len(response.data) > 0
         except Exception as e:
-            st.error(f"Error saving message: {str(e)}")
+            print(f"Error saving message: {str(e)}")
             return False
     
     def _save_demo_message(self, contact_id: str, contact_name: str, message_type: str,
@@ -197,7 +196,7 @@ class DatabaseManager:
                 ))
             return messages
         except Exception as e:
-            st.error(f"Error fetching conversation history: {str(e)}")
+            print(f"Error fetching conversation history: {str(e)}")
             return []
     
     def save_feedback(self, user_id: str, rating: int, feedback_text: str, feature_context: str) -> bool:
@@ -216,7 +215,7 @@ class DatabaseManager:
             response = self.supabase.table("feedback").insert(feedback_data).execute()
             return len(response.data) > 0
         except Exception as e:
-            st.error(f"Error saving feedback: {str(e)}")
+            print(f"Error saving feedback: {str(e)}")
             return False
     
     def _save_demo_feedback(self, user_id: str, rating: int, feedback_text: str, feature_context: str) -> bool:
@@ -265,7 +264,8 @@ class DatabaseManager:
                     explanation="From cache"
                 )
             return None
-        except:
+        except Exception as e:
+            print(f"Error checking cache: {str(e)}")
             return None
     
     def _check_demo_cache(self, contact_id: str, message_hash: str, user_id: str) -> Optional[AIResponse]:
@@ -313,7 +313,8 @@ class DatabaseManager:
             }
             response = self.supabase.table("ai_response_cache").insert(cache_data).execute()
             return len(response.data) > 0
-        except:
+        except Exception as e:
+            print(f"Error saving to cache: {str(e)}")
             return False
     
     def _save_to_demo_cache(self, contact_id: str, message_hash: str, context: str,
