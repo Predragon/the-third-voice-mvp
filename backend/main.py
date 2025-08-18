@@ -2,9 +2,11 @@ from fastapi import FastAPI
 from peewee import SqliteDatabase, Model, IntegerField, TextField, ForeignKeyField, DateTimeField
 from peewee import JOIN
 from datetime import datetime
+from src.core.ai_engine import AIEngine, MessageType, RelationshipContext
 
 app = FastAPI()
 db = SqliteDatabase('/home/thirdvoice/the-third-voice-mvp/thirdvoice.db')
+ai_engine = AIEngine()
 
 class Messages(Model):
     id = IntegerField(primary_key=True)
@@ -46,7 +48,6 @@ async def get_messages():
                        )
                        .join(AIResponseCache, JOIN.LEFT_OUTER, on=(Messages.id == AIResponseCache.message_id))
                        .dicts())
-            # Transform results to nest ai_response
             formatted_results = []
             for row in results:
                 formatted_row = {
@@ -70,3 +71,19 @@ async def get_messages():
 @app.get("/test")
 async def test():
     return {"status": "Backend is running"}
+
+@app.post("/api/coach")
+async def coach(message: str, context: str):
+    try:
+        with db:
+            db.create_tables([Messages, AIResponseCache], safe=True)
+            # Create a new message entry (simplified, adjust sender/receiver as needed)
+            msg = Messages.create(sender_id=1, receiver_id=2, content=message)  # Placeholder IDs
+            # Process with AI engine
+            context_enum = RelationshipContext[context.upper()]
+            ai_response = ai_engine.process_message(message, context, MessageType.TRANSFORM.value, "contact_id", "user_id", db)
+            # Cache the AI response
+            AIResponseCache.create(message_id=msg.id, ai_response=ai_response.json())  # Assuming json() method
+            return ai_response.dict()
+    except Exception as e:
+        return {"error": str(e)}
