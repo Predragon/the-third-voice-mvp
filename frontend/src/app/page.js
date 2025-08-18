@@ -1,38 +1,32 @@
-'use client';
-
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 export default function Home() {
-  const [messages, setMessages] = useState([]);
-  const [error, setError] = useState(null);
+  const [message, setMessage] = useState('');
+  const [context, setContext] = useState('romantic');
+  const [result, setResult] = useState('');
 
-  useEffect(() => {
-    fetch('/api/messages')
-      .then(res => res.json())
-      .then(data => {
-        if (data.error) {
-          setError(data.error);
-        } else {
-          setMessages(data);
-        }
-      })
-      .catch(err => setError(err.message));
-  }, []);
-
-  if (error) {
-    return <div>Error: {error}</div>;
-  }
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const res = await fetch('/api/coach', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, context }),
+    });
+    const data = await res.json();
+    setResult(data.refined);
+  };
 
   return (
     <div>
-      <h1>The Third Voice AI</h1>
-      {messages.map(msg => (
-        <div key={msg.id}>
-          <p><strong>Message:</strong> {msg.content}</p>
-          <p><strong>AI Response:</strong> {msg.ai_response ? msg.ai_response.ai_response : 'No AI response'}</p>
-          <hr />
-        </div>
-      ))}
+      <h1>🎙️ The Third Voice</h1>
+      <form onSubmit={handleSubmit}>
+        <textarea value={message} onChange={(e) => setMessage(e.target.value)} />
+        <select value={context} onChange={(e) => setContext(e.target.value)}>
+          {Object.keys(prompts).map((ctx) => <option key={ctx} value={ctx}>{ctx}</option>)}
+        </select>
+        <button type="submit">Refine</button>
+      </form>
+      {result && <p>{result}</p>}
     </div>
   );
 }
