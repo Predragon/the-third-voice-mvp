@@ -15,10 +15,14 @@ import threading
 import time
 import asyncio
 
-# Updated imports for new structure
+# Update imports
 from ..core.config import settings
-from ..data.models import MessageType, ContextType, SentimentType
+from ..data.schemas import MessageType, ContextType, SentimentType
 from ..data.crud import MessageCRUD, CacheCRUD
+# Updated imports for new structure
+#from ..core.config import settings
+#from ..data.models import MessageType, ContextType, SentimentType
+#from ..data.crud import MessageCRUD, CacheCRUD
 
 
 class AIResponse:
