@@ -1,14 +1,4 @@
-# src/api/routes/__init__.py
+# src/api/__init__.py
 """
-API routes package
+API package containing FastAPI routes and endpoints
 """
-
-from . import auth, contacts, messages, feedback, health
-
-__all__ = [
-    "auth",
-    "contacts", 
-    "messages",
-    "feedback",
-    "health"
-]
