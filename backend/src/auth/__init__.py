@@ -1,7 +1,22 @@
+# src/auth/__init__.py
 """
-Authentication module for The Third Voice AI
+Authentication package containing JWT auth and user management
 """
 
-from .auth_manager import AuthManager
+from .auth_manager import (
+    auth_manager,
+    get_current_user,
+    get_current_user_optional,
+    TokenResponse,
+    LoginRequest,
+    DemoResponse
+)
 
-__all__ = ['AuthManager']
+__all__ = [
+    "auth_manager",
+    "get_current_user", 
+    "get_current_user_optional",
+    "TokenResponse",
+    "LoginRequest",
+    "DemoResponse"
+]
