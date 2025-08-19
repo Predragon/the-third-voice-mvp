@@ -1,4 +1,4 @@
-# Existing packages
+# Your existing packages
 fastapi==0.115.0
 uvicorn==0.32.0
 peewee==3.17.7
@@ -8,9 +8,13 @@ requests==2.32.3
 pydantic==2.9.2
 python-dotenv==1.0.1
 
-# Additional packages needed for authentication and enhanced functionality
-python-jose[cryptography]==3.3.0  # JWT token handling
-passlib[bcrypt]==1.7.4             # Password hashing
-python-multipart==0.0.9            # Form data support
-email-validator==2.1.1             # Email validation for pydantic
-httpx==0.27.0                       # HTTP client for OpenRouter API calls (replacing requests)
+# Authentication packages
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.9
+email-validator==2.1.1
+httpx==0.27.0
+
+# New required packages for complete functionality
+pydantic-settings==2.1.0  # For configuration management
+psutil==5.9.0             # For system metrics in health checks
