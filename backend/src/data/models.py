@@ -1,83 +1,126 @@
-"""
-Data Models for The Third Voice AI
-Defines the core data structures used throughout the application
-"""
+# src/data/models.py
+from datetime import datetime, timedelta
+from peewee import *
+import enum
+import uuid
+from ..core.config import settings
 
-from dataclasses import dataclass
-from datetime import datetime
-from typing import List, Optional
+# Initialize database
+database = SqliteDatabase(settings.DATABASE_PATH)
 
+# Enums for constrained fields
+class ContextType(enum.Enum):
+    ROMANTIC = "romantic"
+    COPARENTING = "coparenting"
+    WORKPLACE = "workplace"
+    FAMILY = "family"
+    FRIEND = "friend"
 
-@dataclass
-class Contact:
-    """Contact data model"""
-    id: str
-    name: str
-    context: str
-    user_id: str
-    created_at: datetime
-    updated_at: datetime
+class SentimentType(enum.Enum):
+    POSITIVE = "positive"
+    NEUTRAL = "neutral"
+    NEGATIVE = "negative"
+    UNKNOWN = "unknown"
 
+class MessageType(enum.Enum):
+    TRANSFORM = "transform"
+    INTERPRET = "interpret"
 
-@dataclass
-class Message:
-    """Message data model"""
-    id: str
-    contact_id: str
-    contact_name: str
-    type: str
-    original: str
-    result: Optional[str]
-    sentiment: Optional[str]
-    emotional_state: Optional[str]
-    model: Optional[str]
-    healing_score: Optional[int]
-    user_id: str
-    created_at: datetime
+# Base model
+class BaseModel(Model):
+    class Meta:
+        database = database
 
-
-@dataclass
-class AIResponse:
-    """AI response data model"""
-    transformed_message: str
-    healing_score: int
-    sentiment: str
-    emotional_state: str
-    explanation: str
-    subtext: str = ""
-    needs: Optional[List[str]] = None
-    warnings: Optional[List[str]] = None
-    model_used: str = ""  # User-friendly model name (e.g., "DeepSeek Chat v3")
-    model_id: str = ""    # Technical model ID (e.g., "deepseek/deepseek-chat-v3-0324:free")
+# User model (replacing auth.users from Supabase)
+class User(BaseModel):
+    id = CharField(primary_key=True, default=lambda: str(uuid.uuid4()))
+    email = CharField(unique=True)
+    hashed_password = CharField()
+    is_active = BooleanField(default=True)
+    created_at = DateTimeField(default=datetime.now)
+    updated_at = DateTimeField(default=datetime.now)
     
-    def __post_init__(self):
-        if self.needs is None:
-            self.needs = []
-        if self.warnings is None:
-            self.warnings = []
+    class Meta:
+        table_name = 'users'
 
-    @property
-    def model_display(self) -> str:
-        """Get display-friendly model information"""
-        if self.model_used:
-            return f"Powered by {self.model_used}"
-        elif self.model_id:
-            # Fallback to cleaning up the model_id if no friendly name
-            clean_name = self.model_id.split("/")[-1].replace(":free", "").replace("-", " ").title()
-            return f"Powered by {clean_name}"
-        else:
-            return "AI-generated response"
+class Contact(BaseModel):
+    id = CharField(primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = TextField()
+    context = CharField(choices=[(ctx.value, ctx.value) for ctx in ContextType])
+    user = ForeignKeyField(User, backref='contacts', on_delete='CASCADE')
+    created_at = DateTimeField(default=datetime.now)
+    updated_at = DateTimeField(default=datetime.now)
+    
+    class Meta:
+        table_name = 'contacts'
 
-    @property
-    def is_fallback_response(self) -> bool:
-        """Check if this response came from the fallback system"""
-        return self.model_id == "fallback" or self.model_used == "Fallback System"
+class Message(BaseModel):
+    id = CharField(primary_key=True, default=lambda: str(uuid.uuid4()))
+    contact = ForeignKeyField(Contact, backref='messages', on_delete='CASCADE')
+    contact_name = TextField()
+    type = CharField(choices=[(msg.value, msg.value) for msg in MessageType], default=MessageType.INCOMING.value)
+    original = TextField()
+    result = TextField(null=True)
+    sentiment = CharField(choices=[(sent.value, sent.value) for sent in SentimentType], null=True)
+    emotional_state = TextField(null=True)
+    model = TextField(null=True)
+    healing_score = IntegerField(null=True, constraints=[Check('healing_score >= 0 AND healing_score <= 10')])
+    user = ForeignKeyField(User, backref='messages', on_delete='CASCADE')
+    created_at = DateTimeField(default=datetime.now)
+    
+    class Meta:
+        table_name = 'messages'
 
-    def get_model_info(self) -> dict:
-        """Get complete model information as dictionary"""
-        return {
-            "friendly_name": self.model_used,
-            "technical_id": self.model_id,
-            "display_text": self.model_display,
-            "is_fallback": self.is_fallback_response
-        }
+class Interpretation(BaseModel):
+    id = CharField(primary_key=True, default=lambda: str(uuid.uuid4()))
+    contact = ForeignKeyField(Contact, backref='interpretations', on_delete='CASCADE')
+    contact_name = TextField()
+    original_message = TextField()
+    interpretation = TextField()
+    interpretation_score = IntegerField(null=True, constraints=[Check('interpretation_score >= 0 AND interpretation_score <= 10')])
+    model = TextField()
+    user = ForeignKeyField(User, backref='interpretations', on_delete='CASCADE')
+    created_at = DateTimeField(default=datetime.now)
+    
+    class Meta:
+        table_name = 'interpretations'
+
+class AIResponseCache(BaseModel):
+    id = CharField(primary_key=True, default=lambda: str(uuid.uuid4()))
+    contact = ForeignKeyField(Contact, backref='ai_cache', on_delete='CASCADE')
+    message_hash = TextField()
+    context = TextField()
+    response = TextField()
+    healing_score = IntegerField(null=True, constraints=[Check('healing_score >= 0 AND healing_score <= 10')])
+    model = TextField()
+    sentiment = CharField(choices=[(sent.value, sent.value) for sent in SentimentType], null=True)
+    emotional_state = TextField(null=True)
+    user = ForeignKeyField(User, backref='ai_cache', on_delete='CASCADE')
+    created_at = DateTimeField(default=datetime.now)
+    expires_at = DateTimeField(default=lambda: datetime.now() + timedelta(days=7))
+    
+    class Meta:
+        table_name = 'ai_response_cache'
+
+class Feedback(BaseModel):
+    id = CharField(primary_key=True, default=lambda: str(uuid.uuid4()))
+    user = ForeignKeyField(User, backref='feedback', on_delete='CASCADE')
+    rating = IntegerField(constraints=[Check('rating >= 1 AND rating <= 5')])
+    feedback_text = TextField(null=True)
+    feature_context = TextField()
+    created_at = DateTimeField(default=datetime.now)
+    
+    class Meta:
+        table_name = 'feedback'
+
+class DemoUsage(BaseModel):
+    id = CharField(primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_email = TextField()
+    login_time = DateTimeField(default=datetime.now)
+    ip_address = TextField(null=True)
+    
+    class Meta:
+        table_name = 'demo_usage'
+
+# List of all models for database operations
+MODELS = [User, Contact, Message, Interpretation, AIResponseCache, Feedback, DemoUsage]
