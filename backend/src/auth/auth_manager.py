@@ -13,9 +13,12 @@ from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from passlib.context import CryptContext
 
-# Import your Pydantic models
-from ..data.models import User, UserCreate, UserResponse, DemoUsage
+# Change imports to use new structure
+from ..data.schemas import UserCreate, UserResponse
 from ..core.config import settings
+# Import your Pydantic models
+#from ..data.models import User, UserCreate, UserResponse, DemoUsage
+#from ..core.config import settings
 
 
 class AuthManager:
