@@ -1,0 +1,22 @@
+=== SESSION SUMMARY ===
+Modified/New files:
+No git repo or no changes
+
+Recent file operations:
+ 1703  git commit -m "Local changes before backend"synche-third-voice-mvpgit add .
+ 1705  (venv) thirdvoice@thirdvoicepi:~/the-third-voice-mvp/backend $ sed -n '400,405p' src/core/exceptions.py
+ 1713  nano ai_engine.py
+ 1719  ls /the-third-voice-mvp
+ 1720  tree /the-third-voice-mvp
+ 1721  tree the-third-voice-mvp
+ 1722  tree the-third-voice-mvp/
+ 1723  cd the-third-voice-mvp
+ 1788  thirdvoice@thirdvoicepi:~/the-third-voice-mvp/backend $ python main.py                               /home/thirdvoice/the-third-voice-mvp/backend/venv/lib/python3.11/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_used" in AIResponse has conflict with protected namespace "model_".                                                               You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.               warnings.warn(                                      /home/thirdvoice/the-third-voice-mvp/backend/venv/lib/python3.11/site-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_id" in AIResponse has conflict with protected namespace "model_".
+ 1812  {   echo "=== SESSION SUMMARY ===";   echo "Modified/New files:";   git status --porcelean 2>/dev/null || echo "No git repo or no changes";   echo -e "\nRecent file operations:";   history | grep -E "(nano|vim|code|touch|mkdir|cp|mv)" | tail -10;   echo -e "\nPython files modified recently:";   find . -name "*.py" -newermt "3 hours ago" -not -path "./venv/*" 2>/dev/null | head -10; } > session_summary.txt && cat session_summary.txt
+
+Python files modified recently:
+./src/api/routes/auth.py
+./src/api/routes/health.py
+./src/data/models.py
+./src/data/database.py
+./src/auth/auth_manager.py
