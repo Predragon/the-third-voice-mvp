@@ -400,4 +400,3 @@ __all__ = [
     "validate_message_content",
     "validate_contact_name"
 ]
-    "
