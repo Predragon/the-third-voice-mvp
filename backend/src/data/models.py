@@ -58,7 +58,7 @@ class Message(BaseModel):
     id = CharField(primary_key=True, default=lambda: str(uuid.uuid4()))
     contact = ForeignKeyField(Contact, backref='messages', on_delete='CASCADE')
     contact_name = TextField()
-    type = CharField(choices=[(msg.value, msg.value) for msg in MessageType], default=MessageType.INCOMING.value)
+    type = CharField(choices=[(msg.value, msg.value) for msg in MessageType], default=MessageType.INTERPRET.value)
     original = TextField()
     result = TextField(null=True)
     sentiment = CharField(choices=[(sent.value, sent.value) for sent in SentimentType], null=True)

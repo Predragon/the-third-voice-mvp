@@ -12,12 +12,20 @@ import asyncio
 from contextlib import asynccontextmanager
 
 # Import your new Pydantic models
+# Import Pydantic schemas
+from .schemas import (
+    ContactCreate, ContactResponse, ContactUpdate,
+    MessageCreate, MessageResponse, MessageUpdate,
+    FeedbackCreate, FeedbackResponse,
+    AIResponse,
+    AIResponseCacheCreate, AIResponseCacheResponse
+)
+
+# Import Peewee models and enums
 from .models import (
-    Contact, ContactCreate, ContactResponse, ContactUpdate,
-    Message, MessageCreate, MessageResponse, MessageUpdate,
-    AIResponse, Feedback, FeedbackCreate, FeedbackResponse,
-    AIResponseCache, AIResponseCacheCreate, AIResponseCacheResponse,
+    Contact, Message, AIResponseCache, Feedback,
     SentimentType, ContextType, MessageType
+
 )
 
 # Import Peewee models for database operations (your existing ones)

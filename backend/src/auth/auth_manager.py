@@ -1,3 +1,5 @@
+from pydantic import BaseModel, Field, Field
+from pydantic import BaseModel, Field, BaseModel
 """
 FastAPI Authentication Manager for The Third Voice AI
 JWT-based authentication with demo user support and Supabase integration
@@ -513,4 +515,4 @@ async def create_demo_token_quick() -> str:
 
 
 # Import BaseModel for the response models above
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, BaseModel, Field

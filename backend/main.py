@@ -27,7 +27,7 @@ from src.ai.ai_engine import ai_engine
 from src.data.peewee_models import create_tables
 from src.api.routes import auth, contacts, messages, feedback, health
 from src.core.exceptions import AppException, ValidationException
-from src.core.logging_config import setup_logging
+from src.core.logging import setup_logging
 from src.data.schemas import HealthCheck, ErrorResponse
 
 # Setup logging
@@ -42,28 +42,28 @@ async def lifespan(app: FastAPI):
     """Application lifespan management"""
     # Startup
     logger.info("🚀 Starting The Third Voice AI Backend")
-    
+
     try:
         # Initialize database
         create_tables()
         logger.info("✅ Database initialized")
-        
+
         # Setup auth manager with database
         auth_manager.db = db_manager
         logger.info("✅ Authentication manager configured")
-        
+
         # AI engine is already initialized
         logger.info("✅ AI engine ready")
-        
+
         # Background tasks could go here
         logger.info("🎭 The Third Voice AI Backend is ready!")
-        
+
         yield
-        
+
     except Exception as e:
         logger.error(f"❌ Startup failed: {e}")
         raise
-    
+
     finally:
         # Shutdown
         logger.info("🔄 Shutting down The Third Voice AI Backend")
@@ -136,12 +136,12 @@ async def validation_exception_handler(request: Request, exc: ValidationExceptio
 async def general_exception_handler(request: Request, exc: Exception):
     """Handle unexpected exceptions"""
     logger.error(f"Unexpected error: {str(exc)}\n{traceback.format_exc()}")
-    
+
     if settings.ENVIRONMENT == "development":
         detail = str(exc)
     else:
         detail = "An unexpected error occurred"
-    
+
     return JSONResponse(
         status_code=500,
         content=ErrorResponse(

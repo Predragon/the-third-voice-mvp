@@ -322,7 +322,8 @@ def _format_uptime(seconds: float) -> str:
         return ", ".join(parts) if parts else "< 1 minute"
         
     except Exception:
-        return f"{seconds:.0f} seconds"router.get("/", response_model=HealthCheck)
+        return f"{seconds:.0f} seconds"
+@router.get("/", response_model=HealthCheck)
 @limiter.limit("30/minute")
 async def health_check(
     request: Request,
@@ -447,4 +448,3 @@ async def detailed_health_check(
         }
 
 
-@
