@@ -1,70 +1,93 @@
 # Contributing to The Third Voice
 
-First of all, thank you for considering contributing to this project! 🎉 We welcome contributions from everyone, whether you're fixing a typo, adding a feature, or improving documentation.
+Thank you for considering contributing! 🎉  
+We welcome improvements, bug fixes, new features, and documentation updates.
 
-## 🚀 Quick Start
+---
 
-### Prerequisites
-- Node.js 18+ and npm/yarn
-- Git configured with your GitHub account
-- Code editor of your choice
+## 🚀 How to Contribute
 
-### Initial Setup
-1. **Fork and clone the repository**
-   ```bash
-   git clone https://github.com/YOUR-USERNAME/the-third-voice.git
-   cd the-third-voice
-   ```
+### 1. Fork the Repository
+Click **Fork** on GitHub to create your own copy of the repository.
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   # or
-   yarn install
-   ```
+### 2. Clone Your Fork
+Clone the fork to your local machine:
 
-3. **Verify your setup**
-   ```bash
-   npm test          # Run tests
-   npm run dev       # Start development server
-   npm run lint      # Check code style
-   ```
+```bash
+git clone https://github.com/your-username/the-third-voice.git
+cd the-third-voice
+```
 
-## 🔄 Development Workflow
+### 3. Create a Branch
 
-### 1. Sync with upstream
-Always start with the latest changes:
+Create a branch from dev (never from main):
+
 ```bash
 git checkout dev
-git pull upstream dev  # Sync with main repo
-git push origin dev    # Update your fork
-```
-
-### 2. Create a feature branch
-```bash
+git pull origin dev
 git checkout -b feature/your-feature-name
-# Examples: feature/user-authentication, fix/mobile-responsive, docs/api-reference
 ```
 
-### 3. Make your changes
-- Write clean, readable code
-- Follow existing conventions and patterns
-- Add comments for complex logic
-- Update documentation if needed
+Branch naming convention:
 
-### 4. Test thoroughly
-```bash
-npm test              # Run all tests
-npm run test:watch    # Run tests in watch mode
-npm run lint          # Check code style
-npm run type-check    # TypeScript validation
-```
+| Type | Prefix | Example |
+|------|--------|---------|
+| Features | `feature/` | `feature/login-ui` |
+| Bugfix | `fix/` | `fix/api-timeout` |
+| Docs | `docs/` | `docs/update-readme` |
+| Chores | `chore/` | `chore/deps-update` |
 
-### 5. Commit your changes
-We use [Conventional Commits](https://conventionalcommits.org/):
+### 4. Make Your Changes
+
+- Follow project coding style
+- Write or update tests if needed
+- Keep changes focused and small
+
+### 5. Commit Your Changes
+
+Use Conventional Commits for clear commit messages:
+
 ```bash
 git add .
-git commit -m "feat: add user profile dashboard"
+git commit -m "feat: add login button component"
 git commit -m "fix: resolve mobile navigation issue"
 git commit -m "docs: update API documentation"
-git commit -m "refactor: simplify authentication logic
+```
+
+### 6. Push Your Branch
+
+Push your branch to your fork:
+
+```bash
+git push origin feature/your-feature-name
+```
+
+### 7. Open a Pull Request (PR)
+
+1. Go to your fork on GitHub
+2. Click **Compare & pull request**
+3. Base branch: `dev`
+4. Describe your changes clearly
+5. Reference issues, e.g., `Closes #42`
+
+### 8. Code Review
+
+- Maintainers will review your PR
+- Be open to feedback and requested changes
+- Once approved, PR will be merged into `dev`
+- The `dev` branch will later be merged into `main` for releases
+
+---
+
+## ✅ Contribution Guidelines
+
+- Write meaningful commit messages
+- Keep PRs small, focused, and single-purpose
+- Update or add tests for new functionality
+- Be respectful and constructive in discussions
+
+💡 **Tip**: If you're unsure about something, open a Draft PR early to get feedback!
+
+---
+
+Thank you for helping improve The Third Voice! 🙌
