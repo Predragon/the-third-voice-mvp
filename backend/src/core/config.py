@@ -28,7 +28,11 @@ class Settings(BaseSettings):
     
     # CORS
     ALLOWED_ORIGINS: List[str] = Field(
-        ["http://localhost:3000", "http://127.0.0.1:3000"],
+        [
+            "http://localhost:3000", 
+            "http://127.0.0.1:3000",
+            "http://100.71.78.118:3000",  # Pi IP address for frontend
+        ],
         description="Allowed CORS origins"
     )
     ALLOWED_HOSTS: List[str] = Field(
