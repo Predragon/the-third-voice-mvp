@@ -18,3 +18,4 @@ httpx==0.27.0
 # New required packages for complete functionality
 pydantic-settings==2.1.0  # For configuration management
 psutil==5.9.0             # For system metrics in health checks
+PyJWT==2.8.0

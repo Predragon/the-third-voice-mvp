@@ -76,7 +76,7 @@ async def lifespan(app: FastAPI):
 # Create FastAPI application
 app = FastAPI(
     title="The Third Voice AI",
-    description="AI-powered communication assistant for difficult conversations",
+    description="AI-powered communication assistant for difficult conversations - Healing families through better communication",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -158,17 +158,24 @@ app.include_router(messages.router, prefix="/api/messages", tags=["Messages"])
 app.include_router(feedback.router, prefix="/api/feedback", tags=["Feedback"])
 app.include_router(health.router, prefix="/api/health", tags=["Health"])
 
-# Root endpoint
+# Root endpoint - Concise but meaningful Third Voice message
 @app.get("/", response_model=Dict[str, Any])
 @limiter.limit("10/minute")
 async def root(request: Request):
-    """Root endpoint with API information"""
+    """Root endpoint with The Third Voice AI information"""
     return {
-        "message": "Welcome to The Third Voice AI API",
+        "welcome": "💙 The Third Voice AI - Healing families through better communication",
+        "mission": "When two hearts struggle to connect, we become the voice of compassion",
+        "born_from": "Built with love during 15 months in detention, for Samantha and all families",
+        "philosophy": "It's not just a chatbot. It's the voice of compassion when the other person can't hear you.",
+        "breakthrough": "August 20, 2025: First transformation achieved 8/10 healing score",
+        "dedication": "For Samantha. For All. 💙",
         "version": "1.0.0",
-        "status": "operational",
+        "status": "ready to heal conversations",
+        "contexts": ["romantic", "coparenting", "family", "workplace", "friends"],
         "docs": "/docs",
         "health": "/api/health",
+        "demo": "/api/auth/demo",
         "timestamp": datetime.now()
     }
 
@@ -178,7 +185,7 @@ async def health_check():
     """Quick health check endpoint"""
     try:
         db_health = await db_manager.health_check()
-        
+
         return HealthCheck(
             status="healthy",
             database=db_health.get("database", False),
