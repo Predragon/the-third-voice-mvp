@@ -2,7 +2,7 @@
     "openapi": "3.1.0",
     "info": {
         "title": "The Third Voice AI",
-        "description": "AI-powered communication assistant for difficult conversations",
+        "description": "AI-powered communication assistant for difficult conversations - Healing families through better communication",
         "version": "1.0.0"
     },
     "paths": {
@@ -1481,7 +1481,7 @@
         "/": {
             "get": {
                 "summary": "Root",
-                "description": "Root endpoint with API information",
+                "description": "Root endpoint with The Third Voice AI information",
                 "operationId": "root__get",
                 "responses": {
                     "200": {
