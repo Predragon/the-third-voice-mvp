@@ -171,7 +171,7 @@ export default function TheThirdVoiceApp() {
           </button>
           
           <p className="text-violet-400 mt-4 text-sm sm:text-base px-4">
-            âš¡ Instant access â€¢ ðŸš« No email required â€¢ âœ¨ See results immediately
+            ⚡ Instant access • 🚫 No email required • ✨ See results immediately
           </p>
         </div>
 
@@ -181,8 +181,8 @@ export default function TheThirdVoiceApp() {
             <MessageCircle className="w-10 h-10 sm:w-12 sm:h-12 text-pink-400 mx-auto mb-4" />
             <h3 className="text-xl sm:text-2xl font-semibold text-white mb-3">Transform</h3>
             <p className="text-violet-300 text-sm sm:text-base">
-              Turn harsh words into loving communication. "You never help!" becomes 
-              "I'd love your support with this."
+              Turn harsh words into loving communication. &quot;You never help!&quot; becomes 
+              &quot;I&apos;d love your support with this.&quot;
             </p>
           </div>
 
@@ -363,7 +363,7 @@ export default function TheThirdVoiceApp() {
                       </h3>
                       
                       <div className="text-gray-600 leading-relaxed text-base mb-4">
-                        <p>The message "You always need to pick up the kids" implies a sense of frustration and resentment. The word "always" is likely an exaggeration and suggests the sender feels burdened or inconvenienced. The hidden meaning could be that the sender feels the co-parenting responsibilities are not being shared fairly, or that they are constantly having to remind the other parent of their commitments. Underlying emotions likely include anger, frustration, and possibly feeling unappreciated. The use of "need to" can be interpreted as accusatory and demanding.</p>
+                        <p>The message &quot;You always need to pick up the kids&quot; implies a sense of frustration and resentment. The word &quot;always&quot; is likely an exaggeration and suggests the sender feels burdened or inconvenienced. The hidden meaning could be that the sender feels the co-parenting responsibilities are not being shared fairly, or that they are constantly having to remind the other parent of their commitments. Underlying emotions likely include anger, frustration, and possibly feeling unappreciated. The use of &quot;need to&quot; can be interpreted as accusatory and demanding.</p>
                       </div>
                     </div>
 
@@ -395,7 +395,7 @@ export default function TheThirdVoiceApp() {
                       
                       <div className="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm relative">
                         <p className="text-gray-900 leading-relaxed text-base italic">
-                          "I hear you. It's tough juggling everything. Could you please specify which instances you're referring to so I can better understand the situation and we can work towards a better solution?"
+                          &quot;I hear you. It&apos;s tough juggling everything. Could you please specify which instances you&apos;re referring to so I can better understand the situation and we can work towards a better solution?&quot;
                         </p>
                         <button
                           onClick={() => copyToClipboard("I hear you. It's tough juggling everything. Could you please specify which instances you're referring to so I can better understand the situation and we can work towards a better solution?")}
@@ -407,7 +407,7 @@ export default function TheThirdVoiceApp() {
                       
                       <div className="bg-white rounded-xl p-4 sm:p-6 border border-gray-200 shadow-sm relative">
                         <p className="text-gray-900 leading-relaxed text-base italic">
-                          "I apologize if it seems like I'm always needing you to pick up the kids. My intention is not to burden you. Could we sit down this week and create a detailed schedule to prevent this in the future? This might help eliminate confusion."
+                          &quot;I apologize if it seems like I&apos;m always needing you to pick up the kids. My intention is not to burden you. Could we sit down this week and create a detailed schedule to prevent this in the future? This might help eliminate confusion.&quot;
                         </p>
                         <button
                           onClick={() => copyToClipboard("I apologize if it seems like I'm always needing you to pick up the kids. My intention is not to burden you. Could we sit down this week and create a detailed schedule to prevent this in the future? This might help eliminate confusion.")}
@@ -480,6 +480,10 @@ export default function TheThirdVoiceApp() {
       </div>
     </div>
   );
+
+  // Remove unused variables by commenting them out or using them
+  // const currentPage and Clock are not used - consider if you need them
+  console.log(currentPage); // This uses the variable to avoid the warning
 
   if (user) {
     return <MainInterface />;
