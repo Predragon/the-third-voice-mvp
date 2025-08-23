@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Heart, MessageCircle, BarChart3, Send, Copy, Sparkles, User, ChevronDown, CheckCircle, Star, ArrowRight, Clock, Loader2 } from 'lucide-react';
+import { Heart, MessageCircle, BarChart3, Send, Copy, Sparkles, User, ChevronDown, CheckCircle, Star, ArrowRight, Loader2 } from 'lucide-react';
 
 const API_BASE = 'http://100.71.78.118:8000';
 
@@ -19,14 +19,14 @@ export default function TheThirdVoiceApp() {
   const [healingScore, setHealingScore] = useState(0);
   
   // Prevent keyboard issues on mobile - simplified approach
-  const handleTextChange = (e) => {
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
     setMessageText(value);
   };
 
   // Prevent viewport changes that cause keyboard to close
-  const handleInputInteraction = (e) => {
-    e.target.style.transform = 'translateZ(0)'; // Force GPU acceleration
+  const handleInputInteraction = (e: React.TouchEvent<HTMLTextAreaElement> | React.FocusEvent<HTMLTextAreaElement>) => {
+    (e.target as HTMLTextAreaElement).style.transform = 'translateZ(0)'; // Force GPU acceleration
   };
 
   const relationshipTypes = [
@@ -171,7 +171,7 @@ export default function TheThirdVoiceApp() {
           </button>
           
           <p className="text-violet-400 mt-4 text-sm sm:text-base px-4">
-            ⚡ Instant access • 🚀 No email required • ✨ See results immediately
+            ⚡ Instant access • 🚫 No email required • ✨ See results immediately
           </p>
         </div>
 
@@ -461,8 +461,8 @@ export default function TheThirdVoiceApp() {
                 </h3>
                 <p className="text-gray-500 text-sm sm:text-base max-w-sm">
                   {activeTab === 'Transform Message' 
-                    ? 'Enter a message above and I&apos;ll help make it more loving and effective.'
-                    : 'Paste a message you received and I&apos;ll help you understand the emotions behind it.'
+                    ? 'Enter a message above and I\'ll help make it more loving and effective.'
+                    : 'Paste a message you received and I\'ll help you understand the emotions behind it.'
                   }
                 </p>
               </div>
@@ -481,9 +481,10 @@ export default function TheThirdVoiceApp() {
     </div>
   );
 
+  // Remove unused variables by commenting them out or using them
   if (user) {
     return <MainInterface />;
   }
 
   return <LandingPage />;
-              }
+                  }
