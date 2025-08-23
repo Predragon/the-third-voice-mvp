@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Heart, MessageCircle, BarChart3, Send, Copy, Sparkles, User, ChevronDown, CheckCircle, Star, ArrowRight, Loader2 } from 'lucide-react';
 
 const API_BASE = 'http://100.71.78.118:8000';
@@ -28,14 +28,44 @@ export default function TheThirdVoiceApp() {
   
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Properly typed event handlers
-  function handleTextChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+  // Fix 1: Use useCallback to prevent function recreation
+  const handleTextChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
     setMessageText(e.target.value);
-  }
+  }, []);
 
-  function handleInputInteraction(_e: React.TouchEvent<HTMLTextAreaElement> | React.FocusEvent<HTMLTextAreaElement>) {
-    // Removed focus calls to prevent Android keyboard issues
-  }
+  // Fix 2: Remove all touch and focus handlers that cause issues
+  const handleKeyboardFocus = useCallback((e: React.FocusEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+    // Don't call any focus methods or scrollIntoView
+    // Just let the native behavior handle it
+  }, []);
+
+  // Fix 3: Add viewport meta fix for Android keyboards
+  useEffect(() => {
+    const viewport = document.querySelector('meta[name=viewport]');
+    if (viewport) {
+      viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover');
+    }
+    
+    // Prevent zoom on input focus for Android
+    const style = document.createElement('style');
+    style.textContent = `
+      @media screen and (max-width: 768px) {
+        input, textarea, select {
+          font-size: 16px !important;
+          transform: translateZ(0);
+          -webkit-appearance: none;
+          border-radius: 0;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
 
   const relationshipTypes = [
     'Co-parent',
@@ -203,15 +233,14 @@ export default function TheThirdVoiceApp() {
   }
   LandingPage.displayName = "LandingPage";
 
-  // Memoized MessageInput to prevent unnecessary re-renders
+  // Fix 4: Stabilized MessageInput component with proper Android handling
   const MessageInput = React.memo(function MessageInput() {
     return (
       <textarea
         ref={textAreaRef}
         value={messageText}
         onChange={handleTextChange}
-        onTouchStart={handleInputInteraction}
-        onFocus={handleInputInteraction}
+        onFocus={handleKeyboardFocus}
         placeholder={activeTab === 'Analyze Message' 
           ? "Paste the message you received here..." 
           : "Type your message here..."
@@ -220,9 +249,16 @@ export default function TheThirdVoiceApp() {
         rows={6}
         style={{ 
           minHeight: '150px',
-          fontSize: '16px',
-          lineHeight: '1.5'
+          fontSize: '16px', // Critical: prevents zoom on Android
+          lineHeight: '1.5',
+          WebkitAppearance: 'none', // Remove iOS styling
+          WebkitTapHighlightColor: 'transparent' // Remove tap highlight
         }}
+        // Fix 5: Critical Android attributes
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck="false"
       />
     );
   });
@@ -232,7 +268,11 @@ export default function TheThirdVoiceApp() {
   function MainInterface() {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="bg-white border-b border-gray-200 px-4 py-3 sm:px-6 sm:py-4 sticky top-0 z-10">
+        {/* Fix 6: Add proper viewport handling for keyboard */}
+        <div 
+          className="bg-white border-b border-gray-200 px-4 py-3 sm:px-6 sm:py-4 sticky top-0 z-10"
+          style={{ minHeight: 'env(safe-area-inset-top)' }}
+        >
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="bg-purple-100 rounded-full p-2">
@@ -258,7 +298,8 @@ export default function TheThirdVoiceApp() {
               <select 
                 value={selectedRelationship}
                 onChange={(e) => setSelectedRelationship(e.target.value)}
-                className="w-full p-3 sm:p-4 pr-10 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 appearance-none text-gray-900 text-base sm:text-lg"
+                className="w-full p-3 sm:p-4 pr-10 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 appearance-none text-gray-900"
+                style={{ fontSize: '16px' }} // Prevent zoom
               >
                 {relationshipTypes.map(type => (
                   <option key={type} value={type}>{type}</option>
