@@ -20,22 +20,22 @@ cd the-third-voice
 
 ### 3. Create a Branch
 
-Create a branch from dev (never from main):
+Create a branch from develop (never from main):
 
 ```bash
-git checkout dev
-git pull origin dev
+git checkout develop
+git pull origin develop
 git checkout -b feature/your-feature-name
 ```
 
 Branch naming convention:
 
-| Type | Prefix | Example |
-|------|--------|---------|
-| Features | `feature/` | `feature/login-ui` |
-| Bugfix | `fix/` | `fix/api-timeout` |
-| Docs | `docs/` | `docs/update-readme` |
-| Chores | `chore/` | `chore/deps-update` |
+| Type    | Prefix    | Example                    |
+|---------|-----------|----------------------------|
+| Feature | feature/  | feature/login-ui           |
+| Bugfix  | fix/      | fix/api-timeout            |
+| Docs    | docs/     | docs/update-readme         |
+| Chore   | chore/    | chore/deps-update          |
 
 ### 4. Make Your Changes
 
@@ -66,7 +66,7 @@ git push origin feature/your-feature-name
 
 1. Go to your fork on GitHub
 2. Click **Compare & pull request**
-3. Base branch: `dev`
+3. **Base branch**: develop
 4. Describe your changes clearly
 5. Reference issues, e.g., `Closes #42`
 
@@ -74,8 +74,8 @@ git push origin feature/your-feature-name
 
 - Maintainers will review your PR
 - Be open to feedback and requested changes
-- Once approved, PR will be merged into `dev`
-- The `dev` branch will later be merged into `main` for releases
+- Once approved, PR will be merged into develop
+- The develop branch will later be merged into main for releases
 
 ---
 
