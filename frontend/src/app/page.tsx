@@ -5,6 +5,42 @@ import { Heart, MessageCircle, BarChart3, Send, Copy, Sparkles, User, ChevronDow
 
 const API_BASE = 'http://100.71.78.118:8000';
 
+// Extend Window interface to include SpeechRecognition types
+interface SpeechRecognition extends EventTarget {
+  lang: string;
+  interimResults: boolean;
+  onresult: (event: SpeechRecognitionEvent) => void;
+  onerror: (event: SpeechRecognitionErrorEvent) => void;
+  start: () => void;
+}
+
+interface SpeechRecognitionEvent {
+  results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionResultList {
+  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionResult {
+  [index: number]: SpeechRecognitionAlternative;
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string;
+}
+
+interface SpeechRecognitionErrorEvent {
+  error: string;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition?: new () => SpeechRecognition;
+    webkitSpeechRecognition?: new () => SpeechRecognition;
+  }
+}
+
 interface User {
   name: string;
   email: string;
@@ -14,7 +50,8 @@ interface User {
 
 // Main app component
 export default function TheThirdVoiceApp() {
-  const [currentPage, setCurrentPage] = useState<string>('landing');
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [currentPage, setCurrentPage] = useState<string>('landing'); // Suppress ESLint warning
   const [activeTab, setActiveTab] = useState<string>('Analyze Message');
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -204,15 +241,19 @@ export default function TheThirdVoiceApp() {
     const startSpeechRecognition = () => {
       if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const recognition = new SpeechRecognition();
-        recognition.lang = 'en-US';
-        recognition.interimResults = true;
-        recognition.onresult = (event) => {
-          const transcript = event.results[0][0].transcript;
-          setMessageText(transcript);
-        };
-        recognition.onerror = (event) => console.error('Speech recognition error:', event.error);
-        recognition.start();
+        if (SpeechRecognition) {
+          const recognition = new SpeechRecognition();
+          recognition.lang = 'en-US';
+          recognition.interimResults = true;
+          recognition.onresult = (event: SpeechRecognitionEvent) => {
+            const transcript = event.results[0][0].transcript;
+            setMessageText(transcript);
+          };
+          recognition.onerror = (event: SpeechRecognitionErrorEvent) => console.error('Speech recognition error:', event.error);
+          recognition.start();
+        } else {
+          alert('Speech recognition not supported in this browser.');
+        }
       } else {
         alert('Speech recognition not supported in this browser.');
       }
