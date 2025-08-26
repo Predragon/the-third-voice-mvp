@@ -1,23 +1,4 @@
-"use client";
-
-import React, { useState } from 'react';
-import { Heart, MessageCircle, BarChart3, Send, Copy, Sparkles, User, ChevronDown, CheckCircle, Star, Loader2 } from 'lucide-react';
-
-const API_BASE = 'http://100.71.78.118:8000';
-
-// Main app component - simplified like the working example
-interface User {
-  name: string;
-  email: string;
-  isDemo: boolean;
-  token: string;
-}
-
-export default function TheThirdVoiceApp() {
-  const [currentPage, setCurrentPage] = useState<string>('landing');
-  const [user, setUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState<string>('Analyze Message');
-  const [loading, setLoading] = useState<boolean>(false);
+import React, { useState } from 'react';import { Heart, MessageCircle, BarChart3, Send, Copy, Sparkles, User, ChevronDown, CheckCircle, Star, Loader2 } from 'lucide-react';const API_BASE = 'http://100.71.78.118:8000';// Main app component - simplified like the working exampleinterface User {  name: string;  email: string;  isDemo: boolean;  token: string;}export default function TheThirdVoiceApp() {  const [currentPage, setCurrentPage] = useState<string>('landing');  const [user, setUser] = useState<User | null>(null);  const [activeTab, setActiveTab] = useState<string>('Analyze Message');  const [loading, setLoading] = useState<boolean>(false);
   const [selectedRelationship, setSelectedRelationship] = useState<string>('Co-parent');
   
   // Form states - simplified naming like working example
@@ -50,6 +31,10 @@ export default function TheThirdVoiceApp() {
 
       if (response.ok) {
         const data = await response.json();
+        console.log('Demo response:', data); // Log full response
+        if (!data.token) {
+          console.error('No token in demo response');
+        }
         setUser({ 
           name: 'Demo User', 
           email: 'demo@thirdvoice.ai', 
@@ -57,24 +42,39 @@ export default function TheThirdVoiceApp() {
           token: data.token || 'demo_token'
         });
         setCurrentPage('main');
-        console.log('Demo started:', data);
+        console.log('Demo started, token:', data.token || 'demo_token');
+      } else {
+        console.error('Demo start failed:', await response.text());
+        // Fallback commented out to ensure real backend responses
+        // setUser({ 
+        //   name: 'Demo User', 
+        //   email: 'demo@thirdvoice.ai', 
+        //   isDemo: true,
+        //   token: 'demo_token'
+        // });
+        // setCurrentPage('main');
       }
     } catch (error) {
       console.error('Demo start failed:', error);
-      // Fallback for testing
-      setUser({ 
-        name: 'Demo User', 
-        email: 'demo@thirdvoice.ai', 
-        isDemo: true,
-        token: 'demo_token'
-      });
-      setCurrentPage('main');
+      // Fallback commented out to ensure real backend responses
+      // setUser({ 
+      //   name: 'Demo User', 
+      //   email: 'demo@thirdvoice.ai', 
+      //   isDemo: true,
+      //   token: 'demo_token'
+      // });
+      // setCurrentPage('main');
     }
     setLoading(false);
   };
 
   async function processMessage(type: 'transform' | 'interpret') {
     if (!demoMessage.trim()) return;
+    if (!user?.token) {
+      console.error('No user token available for', type);
+      setLoading(false);
+      return;
+    }
     
     setLoading(true);
     setTransformedMessage('');
@@ -84,7 +84,10 @@ export default function TheThirdVoiceApp() {
       const endpoint = type === 'transform' ? '/api/messages/quick-transform' : '/api/messages/quick-interpret';
       const response = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.token}`
+        },
         body: JSON.stringify({
           message: demoMessage,
           context: selectedRelationship.toLowerCase(),
@@ -101,21 +104,24 @@ export default function TheThirdVoiceApp() {
           setInterpretedMessage(data.interpretation);
         }
       } else {
-        if (type === 'transform') {
-          setTransformedMessage("I understand you're feeling frustrated. Could we talk about this together and find a solution that works for both of us?");
-          setHealingScore(8);
-        } else {
-          setInterpretedMessage('They may be feeling unheard or overwhelmed. Behind the frustration, they might need support or reassurance.');
-        }
+        console.error(`${type} failed:`, await response.text());
+        // Fallback commented out to ensure real backend responses
+        // if (type === 'transform') {
+        //   setTransformedMessage("I understand you're feeling frustrated. Could we talk about this together and find a solution that works for both of us?");
+        //   setHealingScore(8);
+        // } else {
+        //   setInterpretedMessage('They may be feeling unheard or overwhelmed. Behind the frustration, they might need support or reassurance.');
+        // }
       }
     } catch (error) {
       console.error(`${type} failed:`, error);
-      if (type === 'transform') {
-        setTransformedMessage("I'd love to discuss this with you. Can we find a time to talk about what's important to both of us?");
-        setHealingScore(7);
-      } else {
-        setInterpretedMessage('This message suggests they may be feeling stressed or need more connection. Consider responding with empathy.');
-      }
+      // Fallback commented out to ensure real backend responses
+      // if (type === 'transform') {
+      //   setTransformedMessage("I'd love to discuss this with you. Can we find a time to talk about what's important to both of us?");
+      //   setHealingScore(7);
+      // } else {
+      //   setInterpretedMessage('This message suggests they may be feeling stressed or need more connection. Consider responding with empathy.');
+      // }
     }
     setLoading(false);
   }
@@ -492,4 +498,3 @@ export default function TheThirdVoiceApp() {
       </div>
     </div>
   );
-}
