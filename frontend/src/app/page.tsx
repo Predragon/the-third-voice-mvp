@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Heart, MessageCircle, BarChart3, Send, Copy, Sparkles, User, ChevronDown, CheckCircle, Star, Loader2 } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 
 const API_BASE = 'http://100.71.78.118:8000';
 
@@ -429,8 +429,8 @@ export default function TheThirdVoiceApp() {
             <div className="text-4xl mb-4">💬</div>
             <h3 className="text-xl font-semibold text-white mb-3">Transform</h3>
             <p className="text-purple-100">
-              "You never help!" becomes<br />
-              "I'd love your help with..."
+              Transform harsh messages into<br />
+              loving communication
             </p>
           </div>
             
@@ -483,7 +483,7 @@ export default function TheThirdVoiceApp() {
         {/* Footer */}
         <div className="text-center mt-16 text-purple-200">
           <p className="text-lg mb-4">
-            "For Samantha! For every family! For the power of the third voice!"
+            &quot;For Samantha! For every family! For the power of the third voice!&quot;
           </p>
           <p className="text-sm opacity-75">
             Built with 💙 from detention to deployment • Every line of code written for love
