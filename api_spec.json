@@ -1,0 +1,1303 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "The Third Voice AI",
+        "description": "AI-powered communication assistant for difficult conversations - Healing families through better communication",
+        "version": "1.0.0"
+    },
+    "paths": {
+        "/api/contacts/": {
+            "get": {
+                "tags": [
+                    "Contacts"
+                ],
+                "summary": "Get Contacts",
+                "description": "Get all contacts for the current user\n\nReturns list of contacts ordered by most recently updated",
+                "operationId": "get_contacts_api_contacts__get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/ContactResponse"
+                                    },
+                                    "type": "array",
+                                    "title": "Response Get Contacts Api Contacts  Get"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Contacts"
+                ],
+                "summary": "Create Contact",
+                "description": "Create a new contact\n\nDemo users are limited to a maximum number of contacts",
+                "operationId": "create_contact_api_contacts__post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ContactCreate"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ContactResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ]
+            }
+        },
+        "/api/contacts/{contact_id}": {
+            "get": {
+                "tags": [
+                    "Contacts"
+                ],
+                "summary": "Get Contact",
+                "description": "Get a specific contact by ID",
+                "operationId": "get_contact_api_contacts__contact_id__get",
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "contact_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Contact Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ContactResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "Contacts"
+                ],
+                "summary": "Update Contact",
+                "description": "Update a contact's information",
+                "operationId": "update_contact_api_contacts__contact_id__put",
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "contact_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Contact Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ContactUpdate"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ContactResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Contacts"
+                ],
+                "summary": "Delete Contact",
+                "description": "Delete a contact and all associated messages\n\nThis action cannot be undone",
+                "operationId": "delete_contact_api_contacts__contact_id__delete",
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "contact_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Contact Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/contacts/{contact_id}/messages": {
+            "get": {
+                "tags": [
+                    "Contacts"
+                ],
+                "summary": "Get Contact Messages",
+                "description": "Get conversation history for a specific contact",
+                "operationId": "get_contact_messages_api_contacts__contact_id__messages_get",
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "contact_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Contact Id"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 100,
+                            "minimum": 1,
+                            "description": "Maximum number of messages to return",
+                            "default": 50,
+                            "title": "Limit"
+                        },
+                        "description": "Maximum number of messages to return"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/contacts/contexts/available": {
+            "get": {
+                "tags": [
+                    "Contacts"
+                ],
+                "summary": "Get Available Contexts",
+                "description": "Get list of available context types for contacts",
+                "operationId": "get_available_contexts_api_contacts_contexts_available_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "type": "object"
+                                    },
+                                    "type": "array",
+                                    "title": "Response Get Available Contexts Api Contacts Contexts Available Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/contacts/{contact_id}/stats": {
+            "get": {
+                "tags": [
+                    "Contacts"
+                ],
+                "summary": "Get Contact Stats",
+                "description": "Get statistics for a specific contact",
+                "operationId": "get_contact_stats_api_contacts__contact_id__stats_get",
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "contact_id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Contact Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/messages/quick-transform": {
+            "post": {
+                "tags": [
+                    "Messages"
+                ],
+                "summary": "Quick Transform",
+                "description": "Quick message transformation without authentication\n\nTransforms messages to be more constructive and healing",
+                "operationId": "quick_transform_api_messages_quick_transform_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/QuickMessageRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "title": "Response Quick Transform Api Messages Quick Transform Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/messages/quick-interpret": {
+            "post": {
+                "tags": [
+                    "Messages"
+                ],
+                "summary": "Quick Interpret",
+                "description": "Quick message interpretation without authentication\n\nHelps understand what someone really means and suggests responses",
+                "operationId": "quick_interpret_api_messages_quick_interpret_post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/QuickMessageRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "title": "Response Quick Interpret Api Messages Quick Interpret Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/messages/health": {
+            "get": {
+                "tags": [
+                    "Messages"
+                ],
+                "summary": "Messages Health",
+                "description": "Simple health check for messages service",
+                "operationId": "messages_health_api_messages_health_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/feedback/": {
+            "post": {
+                "tags": [
+                    "Feedback"
+                ],
+                "summary": "Submit Feedback",
+                "description": "Submit user feedback\n\nRatings are from 1-5 stars with optional text feedback",
+                "operationId": "submit_feedback_api_feedback__post",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/FeedbackCreate"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/FeedbackResponse"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ]
+            }
+        },
+        "/api/feedback/my-feedback": {
+            "get": {
+                "tags": [
+                    "Feedback"
+                ],
+                "summary": "Get My Feedback",
+                "description": "Get all feedback submitted by current user",
+                "operationId": "get_my_feedback_api_feedback_my_feedback_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/FeedbackResponse"
+                                    },
+                                    "type": "array",
+                                    "title": "Response Get My Feedback Api Feedback My Feedback Get"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ]
+            }
+        },
+        "/api/feedback/categories": {
+            "get": {
+                "tags": [
+                    "Feedback"
+                ],
+                "summary": "Get Feedback Categories",
+                "description": "Get available feedback categories",
+                "operationId": "get_feedback_categories_api_feedback_categories_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "additionalProperties": {
+                                            "type": "string"
+                                        },
+                                        "type": "object"
+                                    },
+                                    "type": "array",
+                                    "title": "Response Get Feedback Categories Api Feedback Categories Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/feedback/quick": {
+            "post": {
+                "tags": [
+                    "Feedback"
+                ],
+                "summary": "Quick Feedback",
+                "description": "Submit quick feedback without full form",
+                "operationId": "quick_feedback_api_feedback_quick_post",
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "rating",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "title": "Rating"
+                        }
+                    },
+                    {
+                        "name": "category",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "default": "general",
+                            "title": "Category"
+                        }
+                    },
+                    {
+                        "name": "comment",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "title": "Comment"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "title": "Response Quick Feedback Api Feedback Quick Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/feedback/stats/summary": {
+            "get": {
+                "tags": [
+                    "Feedback"
+                ],
+                "summary": "Get Feedback Summary",
+                "description": "Get feedback statistics summary for current user\n\nShows user's feedback patterns and engagement",
+                "operationId": "get_feedback_summary_api_feedback_stats_summary_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "title": "Response Get Feedback Summary Api Feedback Stats Summary Get"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ]
+            }
+        },
+        "/api/feedback/prompts": {
+            "get": {
+                "tags": [
+                    "Feedback"
+                ],
+                "summary": "Get Feedback Prompts",
+                "description": "Get contextual feedback prompts to encourage user engagement",
+                "operationId": "get_feedback_prompts_api_feedback_prompts_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "title": "Response Get Feedback Prompts Api Feedback Prompts Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/feedback/feature-vote": {
+            "post": {
+                "tags": [
+                    "Feedback"
+                ],
+                "summary": "Vote For Feature",
+                "description": "Vote for a feature or improvement\n\nHelps prioritize development roadmap",
+                "operationId": "vote_for_feature_api_feedback_feature_vote_post",
+                "security": [
+                    {
+                        "HTTPBearer": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "feature_name",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "title": "Feature Name"
+                        }
+                    },
+                    {
+                        "name": "priority",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "title": "Priority"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "title": "Response Vote For Feature Api Feedback Feature Vote Post"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation Error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/health/database": {
+            "get": {
+                "tags": [
+                    "Health"
+                ],
+                "summary": "Database Health",
+                "description": "Specific database health check with detailed metrics",
+                "operationId": "database_health_api_health_database_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "title": "Response Database Health Api Health Database Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/health/ai-engine": {
+            "get": {
+                "tags": [
+                    "Health"
+                ],
+                "summary": "Ai Engine Health",
+                "description": "AI engine health check with model availability",
+                "operationId": "ai_engine_health_api_health_ai_engine_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "title": "Response Ai Engine Health Api Health Ai Engine Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/health/system": {
+            "get": {
+                "tags": [
+                    "Health"
+                ],
+                "summary": "System Metrics",
+                "description": "System resource metrics for monitoring",
+                "operationId": "system_metrics_api_health_system_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "title": "Response System Metrics Api Health System Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/health/ready": {
+            "get": {
+                "tags": [
+                    "Health"
+                ],
+                "summary": "Readiness Check",
+                "description": "Readiness probe for container orchestration\n\nReturns whether the application is ready to serve traffic",
+                "operationId": "readiness_check_api_health_ready_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "title": "Response Readiness Check Api Health Ready Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/health/liveness": {
+            "get": {
+                "tags": [
+                    "Health"
+                ],
+                "summary": "Liveness Check",
+                "description": "Liveness probe for container orchestration\n\nReturns whether the application is alive and should continue running",
+                "operationId": "liveness_check_api_health_liveness_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "title": "Response Liveness Check Api Health Liveness Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/health/": {
+            "get": {
+                "tags": [
+                    "Health"
+                ],
+                "summary": "Health Check",
+                "description": "Main health check endpoint\n\nReturns overall system health including database and AI engine status",
+                "operationId": "health_check_api_health__get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HealthCheck"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/health/detailed": {
+            "get": {
+                "tags": [
+                    "Health"
+                ],
+                "summary": "Detailed Health Check",
+                "description": "Detailed system health check with performance metrics\n\nIncludes system resources, database stats, and service status",
+                "operationId": "detailed_health_check_api_health_detailed_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "title": "Response Detailed Health Check Api Health Detailed Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/": {
+            "get": {
+                "summary": "Root",
+                "description": "Root endpoint with The Third Voice AI information",
+                "operationId": "root__get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "title": "Response Root  Get"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "summary": "Health Check",
+                "description": "Quick health check endpoint",
+                "operationId": "health_check_health_get",
+                "responses": {
+                    "200": {
+                        "description": "Successful Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HealthCheck"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "ContactCreate": {
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "maxLength": 100,
+                        "minLength": 1,
+                        "title": "Name",
+                        "description": "Contact name"
+                    },
+                    "context": {
+                        "$ref": "#/components/schemas/ContextType",
+                        "description": "Relationship context"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "name",
+                    "context"
+                ],
+                "title": "ContactCreate"
+            },
+            "ContactResponse": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "title": "Created At"
+                    },
+                    "updated_at": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Updated At"
+                    },
+                    "name": {
+                        "type": "string",
+                        "title": "Name"
+                    },
+                    "context": {
+                        "$ref": "#/components/schemas/ContextType"
+                    },
+                    "user_id": {
+                        "type": "string",
+                        "title": "User Id"
+                    },
+                    "message_count": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Message Count",
+                        "description": "Total messages for this contact"
+                    },
+                    "last_message_date": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Last Message Date",
+                        "description": "Date of last message"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "created_at",
+                    "name",
+                    "context",
+                    "user_id"
+                ],
+                "title": "ContactResponse"
+            },
+            "ContactUpdate": {
+                "properties": {
+                    "name": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "maxLength": 100,
+                                "minLength": 1
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Name"
+                    },
+                    "context": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/ContextType"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    }
+                },
+                "type": "object",
+                "title": "ContactUpdate"
+            },
+            "ContextType": {
+                "type": "string",
+                "enum": [
+                    "romantic",
+                    "coparenting",
+                    "workplace",
+                    "family",
+                    "friend"
+                ],
+                "title": "ContextType"
+            },
+            "FeedbackCreate": {
+                "properties": {
+                    "rating": {
+                        "type": "integer",
+                        "maximum": 5.0,
+                        "minimum": 1.0,
+                        "title": "Rating",
+                        "description": "Rating from 1-5 stars"
+                    },
+                    "feedback_text": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "maxLength": 1000
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Feedback Text",
+                        "description": "Optional feedback text"
+                    },
+                    "feature_context": {
+                        "type": "string",
+                        "title": "Feature Context",
+                        "description": "Which feature this feedback is for"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "rating",
+                    "feature_context"
+                ],
+                "title": "FeedbackCreate"
+            },
+            "FeedbackResponse": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "title": "Id"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "title": "Created At"
+                    },
+                    "updated_at": {
+                        "anyOf": [
+                            {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Updated At"
+                    },
+                    "rating": {
+                        "type": "integer",
+                        "title": "Rating"
+                    },
+                    "feedback_text": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "title": "Feedback Text"
+                    },
+                    "feature_context": {
+                        "type": "string",
+                        "title": "Feature Context"
+                    },
+                    "user_id": {
+                        "type": "string",
+                        "title": "User Id"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "id",
+                    "created_at",
+                    "rating",
+                    "feedback_text",
+                    "feature_context",
+                    "user_id"
+                ],
+                "title": "FeedbackResponse"
+            },
+            "HTTPValidationError": {
+                "properties": {
+                    "detail": {
+                        "items": {
+                            "$ref": "#/components/schemas/ValidationError"
+                        },
+                        "type": "array",
+                        "title": "Detail"
+                    }
+                },
+                "type": "object",
+                "title": "HTTPValidationError"
+            },
+            "HealthCheck": {
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "title": "Status",
+                        "default": "healthy"
+                    },
+                    "database": {
+                        "type": "boolean",
+                        "title": "Database"
+                    },
+                    "ai_engine": {
+                        "type": "boolean",
+                        "title": "Ai Engine"
+                    },
+                    "timestamp": {
+                        "type": "string",
+                        "format": "date-time",
+                        "title": "Timestamp"
+                    },
+                    "version": {
+                        "type": "string",
+                        "title": "Version"
+                    },
+                    "uptime_seconds": {
+                        "type": "number",
+                        "title": "Uptime Seconds"
+                    },
+                    "demo_users_active": {
+                        "type": "integer",
+                        "title": "Demo Users Active",
+                        "default": 0
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "database",
+                    "ai_engine",
+                    "timestamp",
+                    "version",
+                    "uptime_seconds"
+                ],
+                "title": "HealthCheck",
+                "description": "Health check response"
+            },
+            "QuickMessageRequest": {
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "title": "Message"
+                    },
+                    "contact_context": {
+                        "type": "string",
+                        "title": "Contact Context",
+                        "default": "friend"
+                    },
+                    "contact_name": {
+                        "type": "string",
+                        "title": "Contact Name",
+                        "default": "Friend"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "message"
+                ],
+                "title": "QuickMessageRequest"
+            },
+            "ValidationError": {
+                "properties": {
+                    "loc": {
+                        "items": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "integer"
+                                }
+                            ]
+                        },
+                        "type": "array",
+                        "title": "Location"
+                    },
+                    "msg": {
+                        "type": "string",
+                        "title": "Message"
+                    },
+                    "type": {
+                        "type": "string",
+                        "title": "Error Type"
+                    }
+                },
+                "type": "object",
+                "required": [
+                    "loc",
+                    "msg",
+                    "type"
+                ],
+                "title": "ValidationError"
+            }
+        },
+        "securitySchemes": {
+            "HTTPBearer": {
+                "type": "http",
+                "scheme": "bearer"
+            }
+        }
+    }
+}

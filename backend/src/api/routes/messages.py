@@ -1,33 +1,25 @@
 """
 Messages API routes for The Third Voice AI
 AI-powered message processing and conversation management
+Authentication removed for MVP simplicity
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
+from fastapi import APIRouter, HTTPException, status, Request, BackgroundTasks
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from typing import List, Dict, Any, Optional
 import logging
 import json
+from datetime import datetime
 
-from ...auth.auth_manager import get_current_user
 from ...data.schemas import (
-    MessageCreate,
-    MessageResponse,
-    AIResponse,
-    UserResponse,
     MessageType,
     SentimentType
 )
-from ...data.database import get_database_manager, DatabaseManager
-from ...ai.ai_engine import ai_engine
+from ...ai.ai_engine import ai_engine, AnalysisDepth
 from ...core.exceptions import (
-    ContactNotFoundException,
-    MessageNotFoundException,
-    DemoLimitException,
     ValidationException,
     AIServiceException,
-    raise_for_demo_limit,
     validate_message_content
 )
 from ...core.config import settings
@@ -43,383 +35,58 @@ class QuickMessageRequest(BaseModel):
     message: str
     contact_context: str = "friend"
     contact_name: str = "Friend"
-
-@router.post("/process", response_model=MessageResponse)
-@limiter.limit("30/minute")
-async def process_message(
-    request: Request,
-    message_data: MessageCreate,
-    background_tasks: BackgroundTasks,
-    current_user: UserResponse = Depends(get_current_user),
-    db: DatabaseManager = Depends(get_database_manager)
-) -> MessageResponse:
-    """
-    Process a message with AI transformation or interpretation
-
-    - TRANSFORM: Rewrites message to be more constructive
-    - INTERPRET: Explains what someone really means and suggests responses
-    """
-    try:
-        logger.info(f"Processing message for user: {current_user.email}")
-
-        # Validate message content
-        validate_message_content(message_data.original)
-
-        # Check demo limits
-        if db._is_demo_user(current_user.id):
-            user_messages = []
-            contacts = await db.get_user_contacts(current_user.id)
-            for contact in contacts:
-                messages = await db.get_conversation_history(contact.id, current_user.id, limit=1000)
-                user_messages.extend(messages)
-
-            raise_for_demo_limit(
-                len(user_messages),
-                settings.DEMO_MAX_MESSAGES,
-                "messages",
-                "message"
-            )
-
-        # Verify contact exists
-        contact = await db.get_contact_by_id(message_data.contact_id, current_user.id)
-        if not contact:
-            raise ContactNotFoundException(message_data.contact_id)
-
-        # Check cache first
-        message_hash = db.create_message_hash(message_data.original, contact.context.value)
-        cached_response = await db.check_cache(
-            message_data.contact_id,
-            message_hash,
-            current_user.id
-        )
-
-        if cached_response:
-            logger.info("⚡ Using cached AI response")
-            ai_response = cached_response
-        else:
-            # Process with AI
-            logger.info(f"🤖 Processing message with AI: {message_data.type.value}")
-            ai_response = await ai_engine.process_message(
-                message=message_data.original,
-                contact_context=contact.context.value,
-                message_type=message_data.type.value,
-                contact_id=message_data.contact_id,
-                user_id=current_user.id
-            )
-
-            # Cache response in background
-            background_tasks.add_task(
-                _cache_ai_response,
-                db,
-                message_data.contact_id,
-                message_hash,
-                contact.context.value,
-                current_user.id,
-                ai_response
-            )
-
-        # Save message to database
-        saved_message = await db.save_message(message_data, current_user.id, ai_response)
-
-        if not saved_message:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to save processed message"
-            )
-
-        logger.info(f"✅ Message processed successfully for {current_user.email}")
-        return saved_message
-
-    except ValidationException:
-        raise
-    except DemoLimitException:
-        raise
-    except ContactNotFoundException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Error processing message for {current_user.email}: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not process message"
-        )
-
-@router.get("/", response_model=List[MessageResponse])
-@limiter.limit("30/minute")
-async def get_messages(
-    request: Request,
-    current_user: UserResponse = Depends(get_current_user),
-    db: DatabaseManager = Depends(get_database_manager),
-    contact_id: Optional[str] = None,
-    limit: int = 50
-) -> List[MessageResponse]:
-    """
-    Get messages for current user
-
-    Optionally filter by contact_id to get conversation history
-    """
-    try:
-        logger.info(f"Fetching messages for user: {current_user.email}")
-
-        if contact_id:
-            # Get messages for specific contact
-            contact = await db.get_contact_by_id(contact_id, current_user.id)
-            if not contact:
-                raise ContactNotFoundException(contact_id)
-
-            messages = await db.get_conversation_history(contact_id, current_user.id, limit)
-            logger.info(f"✅ Retrieved {len(messages)} messages for contact {contact_id}")
-
-        else:
-            # Get all user messages across contacts
-            all_messages = []
-            contacts = await db.get_user_contacts(current_user.id)
-
-            for contact in contacts:
-                contact_messages = await db.get_conversation_history(contact.id, current_user.id, limit)
-                all_messages.extend(contact_messages)
-
-            # Sort by creation date and limit
-            all_messages.sort(key=lambda x: x.created_at, reverse=True)
-            messages = all_messages[:limit]
-
-            logger.info(f"✅ Retrieved {len(messages)} total messages for {current_user.email}")
-
-        return messages
-
-    except ContactNotFoundException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Error fetching messages for {current_user.email}: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not fetch messages"
-        )
-
-@router.get("/{message_id}", response_model=MessageResponse)
-@limiter.limit("30/minute")
-async def get_message(
-    request: Request,
-    message_id: str,
-    current_user: UserResponse = Depends(get_current_user),
-    db: DatabaseManager = Depends(get_database_manager)
-) -> MessageResponse:
-    """
-    Get a specific message by ID
-    """
-    try:
-        logger.info(f"Fetching message {message_id} for user: {current_user.email}")
-
-        # For simplicity, we'll search through all contacts
-        # In a production system, you might have a direct message lookup
-        contacts = await db.get_user_contacts(current_user.id)
-
-        for contact in contacts:
-            messages = await db.get_conversation_history(contact.id, current_user.id, limit=1000)
-            for message in messages:
-                if message.id == message_id:
-                    logger.info(f"✅ Found message {message_id}")
-                    return message
-
-        logger.warning(f"❌ Message {message_id} not found for user {current_user.email}")
-        raise MessageNotFoundException(message_id)
-
-    except MessageNotFoundException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Error fetching message {message_id}: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not fetch message"
-        )
-
-@router.post("/batch", response_model=List[MessageResponse])
-@limiter.limit("10/minute")
-async def process_batch_messages(
-    request: Request,
-    messages_data: List[MessageCreate],
-    background_tasks: BackgroundTasks,
-    current_user: UserResponse = Depends(get_current_user),
-    db: DatabaseManager = Depends(get_database_manager)
-) -> List[MessageResponse]:
-    """
-    Process multiple messages in batch
-
-    Limited to prevent abuse and resource exhaustion
-    """
-    try:
-        logger.info(f"Processing batch of {len(messages_data)} messages for user: {current_user.email}")
-
-        # Limit batch size
-        if len(messages_data) > 5:
-            raise ValidationException("Batch size limited to 5 messages")
-
-        # Check demo limits
-        if db._is_demo_user(current_user.id):
-            user_messages = []
-            contacts = await db.get_user_contacts(current_user.id)
-            for contact in contacts:
-                messages = await db.get_conversation_history(contact.id, current_user.id, limit=1000)
-                user_messages.extend(messages)
-
-            raise_for_demo_limit(
-                len(user_messages) + len(messages_data),
-                settings.DEMO_MAX_MESSAGES,
-                "messages",
-                "message"
-            )
-
-        processed_messages = []
-
-        for message_data in messages_data:
-            try:
-                # Validate each message
-                validate_message_content(message_data.original)
-
-                # Verify contact exists
-                contact = await db.get_contact_by_id(message_data.contact_id, current_user.id)
-                if not contact:
-                    raise ContactNotFoundException(message_data.contact_id)
-
-                # Process with AI
-                ai_response = await ai_engine.process_message(
-                    message=message_data.original,
-                    contact_context=contact.context.value,
-                    message_type=message_data.type.value,
-                    contact_id=message_data.contact_id,
-                    user_id=current_user.id
-                )
-
-                # Save message
-                saved_message = await db.save_message(message_data, current_user.id, ai_response)
-                if saved_message:
-                    processed_messages.append(saved_message)
-
-                # Cache response in background
-                message_hash = db.create_message_hash(message_data.original, contact.context.value)
-                background_tasks.add_task(
-                    _cache_ai_response,
-                    db,
-                    message_data.contact_id,
-                    message_hash,
-                    contact.context.value,
-                    current_user.id,
-                    ai_response
-                )
-
-            except Exception as e:
-                logger.error(f"❌ Failed to process message in batch: {str(e)}")
-                continue
-
-        logger.info(f"✅ Processed {len(processed_messages)} messages in batch")
-        return processed_messages
-
-    except ValidationException:
-        raise
-    except DemoLimitException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Error processing batch messages: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not process message batch"
-        )
-
-@router.get("/stats/user")
-@limiter.limit("20/minute")
-async def get_user_message_stats(
-    request: Request,
-    current_user: UserResponse = Depends(get_current_user),
-    db: DatabaseManager = Depends(get_database_manager),
-    days: int = 30
-) -> Dict[str, Any]:
-    """
-    Get message statistics for current user
-    """
-    try:
-        logger.info(f"Fetching message stats for user: {current_user.email}")
-
-        stats = await db.get_message_stats(current_user.id, days)
-
-        logger.info(f"✅ Generated message stats for {current_user.email}")
-        return stats
-
-    except Exception as e:
-        logger.error(f"❌ Error generating message stats: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not generate message statistics"
-        )
+    use_deep_analysis: bool = False
+    mode: Optional[str] = None
 
 @router.post("/quick-transform")
 @limiter.limit("50/minute")
 async def quick_transform(
     request: Request,
-    message_data: QuickMessageRequest,
-    current_user: UserResponse = Depends(get_current_user)
+    message_data: QuickMessageRequest
 ) -> Dict[str, Any]:
     """
-    Quick message transformation without saving to database
-
-    Useful for testing or one-off transformations
+    Quick message transformation without authentication
+    
+    Transforms messages to be more constructive and healing
     """
     try:
-        logger.info(f"Quick transform request from user: {current_user.email}")
-
+        logger.info(f"Quick transform request: {message_data.message[:50]}... (Deep analysis: {message_data.use_deep_analysis})")
+        
         # Validate message
         validate_message_content(message_data.message)
-
-        # Process with AI (no caching for quick transforms)
-        raw_response = await ai_engine.process_message(
+        
+        # Determine analysis depth
+        analysis_depth = AnalysisDepth.DEEP if message_data.use_deep_analysis else AnalysisDepth.QUICK
+        
+        # Process with AI
+        ai_response = await ai_engine.process_message(
             message=message_data.message,
             contact_context=message_data.contact_context,
             message_type=MessageType.TRANSFORM.value,
-            contact_id="quick-transform",
-            user_id=current_user.id
+            contact_id="anonymous",
+            user_id="anonymous",
+            analysis_depth=analysis_depth
         )
-
-        # Parse AI response (handle markdown-wrapped JSON)
-        if isinstance(raw_response, str):
-            if raw_response.startswith('```json'):
-                raw_response = raw_response.strip('```json\n').strip('```')
-            try:
-                response_data = json.loads(raw_response)
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse AI response: {str(e)}, raw_response: {raw_response}")
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Could not transform message"
-                )
-        else:
-            response_data = raw_response
-
-        # Convert to AIResponse object
-        try:
-            ai_response = AIResponse(**response_data)
-        except Exception as e:
-            logger.error(f"Failed to create AIResponse object: {str(e)}, response_data: {response_data}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Could not transform message"
-            )
-
+        
         result = {
             "original": message_data.message,
             "transformed_message": ai_response.transformed_message,
             "healing_score": ai_response.healing_score or 8,
-            "sentiment": ai_response.sentiment.value if ai_response.sentiment else None,
+            "sentiment": ai_response.sentiment,
             "emotional_state": ai_response.emotional_state,
             "explanation": ai_response.explanation,
             "model_used": ai_response.model_used,
-            "context": message_data.contact_context
+            "context": message_data.contact_context,
+            "analysis_depth": "deep" if message_data.use_deep_analysis else "quick"
         }
-
-        logger.info(f"✅ Quick transform completed for {current_user.email}")
+        
+        logger.info(f"Transform completed successfully")
         return result
-
+        
     except ValidationException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error in quick transform: {str(e)}")
+        logger.error(f"Error in quick transform: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not transform message"
@@ -429,125 +96,122 @@ async def quick_transform(
 @limiter.limit("50/minute")
 async def quick_interpret(
     request: Request,
-    message_data: QuickMessageRequest,
-    current_user: UserResponse = Depends(get_current_user)
+    message_data: QuickMessageRequest
 ) -> Dict[str, Any]:
     """
-    Quick message interpretation without saving to database
+    Quick message interpretation without authentication
+    
+    Helps understand what someone really means and suggests responses
     """
     try:
-        logger.info(f"Quick interpret request from user: {current_user.email}")
-
+        logger.info(f"Quick interpret request: {message_data.message[:50]}... (Deep analysis: {message_data.use_deep_analysis})")
+        
         # Validate message
         validate_message_content(message_data.message)
-
+        
+        # Determine analysis depth
+        analysis_depth = AnalysisDepth.DEEP if message_data.use_deep_analysis else AnalysisDepth.QUICK
+        
         # Process with AI
-        raw_response = await ai_engine.process_message(
+        ai_response = await ai_engine.process_message(
             message=message_data.message,
             contact_context=message_data.contact_context,
             message_type=MessageType.INTERPRET.value,
-            contact_id="quick-interpret",
-            user_id=current_user.id
+            contact_id="anonymous",
+            user_id="anonymous",
+            analysis_depth=analysis_depth
         )
-
-        # Parse AI response (handle markdown-wrapped JSON)
-        if isinstance(raw_response, str):
-            if raw_response.startswith('```json'):
-                raw_response = raw_response.strip('```json\n').strip('```')
-            try:
-                response_data = json.loads(raw_response)
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse AI response: {str(e)}, raw_response: {raw_response}")
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Could not interpret message"
-                )
+        
+        # Generate suggested responses (what the user should send back)
+        suggested_responses = []
+        
+        # Try to get responses from AI first - but NOT from explanation field
+        if hasattr(ai_response, 'suggested_responses') and ai_response.suggested_responses:
+            if isinstance(ai_response.suggested_responses, list):
+                suggested_responses = [resp for resp in ai_response.suggested_responses if resp and resp.strip() and not resp.startswith("They are")]
+            elif isinstance(ai_response.suggested_responses, str) and not ai_response.suggested_responses.startswith("They are"):
+                suggested_responses = [ai_response.suggested_responses]
+        
+        # If AI didn't provide proper response suggestions, generate contextual ones
+        if not suggested_responses:
+            if message_data.contact_context in ['coparenting', 'co-parent']:
+                suggested_responses = [
+                    "I can see this has been frustrating for you. You're right that we both need to be more engaged. How can we set up a better system?",
+                    "I hear that you're feeling unsupported, and I want to change that. Our kids deserve better from both of us. What would help?",
+                    "You're absolutely right to call this out. I need to be more reliable and communicative. Can we talk about what that looks like?"
+                ]
+            elif message_data.contact_context in ['partner', 'spouse']:
+                suggested_responses = [
+                    "I can see how frustrated this has made you, and I understand why. Your feelings are completely valid.",
+                    "You're right to bring this up. I haven't been as supportive as I should be. How can we work on this together?",
+                    "I hear that you're feeling neglected, and that's not okay. What do you need from me to feel more supported?"
+                ]
+            else:
+                suggested_responses = [
+                    "I can see this has been really frustrating for you. Your feelings are completely valid.",
+                    "Thank you for sharing this with me. I want to understand better - can you help me see what would be most helpful?",
+                    "I hear what you're saying, and I want to work together to make this better."
+                ]
+        
+        
+        # Ensure we have a proper explanation/interpretation
+        interpretation = ""
+        if hasattr(ai_response, 'explanation') and ai_response.explanation and ai_response.explanation.strip():
+            interpretation = ai_response.explanation
         else:
-            response_data = raw_response
-
-        # Convert to AIResponse object
-        try:
-            ai_response = AIResponse(**response_data)
-        except Exception as e:
-            logger.error(f"Failed to create AIResponse object: {str(e)}, response_data: {response_data}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Could not interpret message"
-            )
-
+            # Generate interpretation based on available data
+            emotional_context = ""
+            if ai_response.emotional_state:
+                emotional_context = f"feeling {ai_response.emotional_state}"
+            elif ai_response.sentiment and ai_response.sentiment != "neutral":
+                emotional_context = f"{ai_response.sentiment}"
+            
+            if message_data.contact_context in ['coparenting', 'co-parent']:
+                interpretation = f"This message reflects concerns about parenting partnership and communication. The sender is expressing {emotional_context} about coordination and shared responsibilities in raising your children together."
+            elif message_data.contact_context in ['partner', 'spouse']:
+                interpretation = f"This message indicates relationship concerns where the sender is {emotional_context} about feeling supported and heard in your partnership."
+            else:
+                interpretation = f"The sender is communicating {emotional_context} and seeking better understanding and connection in your relationship."
+            
+            # Add context about communication patterns if available
+            if ai_response.subtext:
+                interpretation += f" The deeper need appears to be: {ai_response.subtext.lower()}"
+        
         result = {
             "original": message_data.message,
-            "suggested_response": ai_response.transformed_message,
-            "interpretation": ai_response.explanation,
+            "interpretation": interpretation,
+            "explanation": interpretation,  # Ensure both fields are populated
+            "suggested_response": suggested_responses[0] if suggested_responses else "",
+            "suggested_responses": suggested_responses,
             "subtext": ai_response.subtext,
             "emotional_needs": ai_response.needs,
             "warnings": ai_response.warnings,
             "healing_score": ai_response.healing_score or 8,
-            "sentiment": ai_response.sentiment.value if ai_response.sentiment else None,
+            "sentiment": ai_response.sentiment,
             "emotional_state": ai_response.emotional_state,
             "model_used": ai_response.model_used,
-            "context": message_data.contact_context
+            "context": message_data.contact_context,
+            "analysis_depth": "deep" if message_data.use_deep_analysis else "quick"
         }
-
-        logger.info(f"✅ Quick interpret completed for {current_user.email}")
+        
+        logger.info(f"Interpret completed successfully")
         return result
-
+        
     except ValidationException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error in quick interpret: {str(e)}")
+        logger.error(f"Error in quick interpret: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not interpret message"
         )
 
-# Background task for caching AI responses
-async def _cache_ai_response(
-    db: DatabaseManager,
-    contact_id: str,
-    message_hash: str,
-    context: str,
-    user_id: str,
-    ai_response: AIResponse
-):
-    """Background task to cache AI response"""
-    try:
-        await db.save_to_cache(
-            contact_id=contact_id,
-            message_hash=message_hash,
-            context=context,
-            user_id=user_id,
-            ai_response=ai_response
-        )
-        logger.info(f"✅ Cached AI response for user {user_id}")
-    except Exception as e:
-        logger.error(f"❌ Failed to cache AI response: {str(e)}")
-
-@router.delete("/cache/clear")
-@limiter.limit("5/minute")
-async def clear_user_cache(
-    request: Request,
-    current_user: UserResponse = Depends(get_current_user),
-    db: DatabaseManager = Depends(get_database_manager)
-):
-    """
-    Clear AI response cache for current user
-    """
-    try:
-        logger.info(f"Clearing cache for user: {current_user.email}")
-
-        cleared_count = await db.clean_expired_cache(current_user.id)
-
-        logger.info(f"✅ Cleared {cleared_count} cache entries for {current_user.email}")
-        return {
-            "message": f"Cleared {cleared_count} cached responses",
-            "user_id": current_user.id,
-            "status": "success"
-        }
-
-    except Exception as e:
-        logger.error(f"❌ Error clearing cache: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not clear cache"
-        )
+@router.get("/health")
+async def messages_health():
+    """Simple health check for messages service"""
+    return {
+        "status": "healthy",
+        "service": "messages",
+        "ai_models_available": len(ai_engine.models),
+        "timestamp": datetime.now()
+    }

@@ -9,7 +9,7 @@ from slowapi.util import get_remote_address
 from typing import Dict, Any
 import logging
 import time
-import psutil
+# import psutil
 import os
 from datetime import datetime
 

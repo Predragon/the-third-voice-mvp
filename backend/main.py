@@ -14,28 +14,57 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 import uvicorn
 import logging
+import os
+import asyncio
 from datetime import datetime
 from contextlib import asynccontextmanager
 from typing import List, Optional, Dict, Any
 import traceback
 
 # Import your modules
-from src.core.config import settings
+from src.core.config import settings, setup_logging_level, get_uvicorn_config
 from src.data.database import db_manager, get_database_manager
-from src.auth.auth_manager import auth_manager, get_current_user, get_current_user_optional
+# from src.auth.auth_manager import auth_manager, get_current_user, get_current_user_optional
 from src.ai.ai_engine import ai_engine
 from src.data.peewee_models import create_tables
-from src.api.routes import auth, contacts, messages, feedback, health
+# from src.api.routes import auth, contacts, messages, feedback, health
+from src.api.routes import contacts, messages, feedback, health
 from src.core.exceptions import AppException, ValidationException
-from src.core.logging import setup_logging
 from src.data.schemas import HealthCheck, ErrorResponse
 
-# Setup logging
-setup_logging()
+# Setup logging only in the main process
+if os.environ.get("UVICORN_RELOADER") != "1":
+    setup_logging_level()
 logger = logging.getLogger(__name__)
 
 # Rate limiting
 limiter = Limiter(key_func=get_remote_address)
+
+async def prewarm_ai_models():
+    """Prewarm AI models to ensure they're ready for use"""
+    try:
+        # Use the models list from ai_engine
+        valid_models = ai_engine.models
+        if not valid_models:
+            logger.warning("No valid AI models found for prewarming")
+            return
+
+        for model_info in valid_models:
+            try:
+                logger.info(f"Prewarming model: {model_info['name']} ({model_info['id']})")
+                # Use ai_engine's _try_model method for prewarming
+                await ai_engine._try_model(
+                    model_info=model_info,
+                    system_prompt="You are a helper AI.",
+                    user_prompt="Hello. Prewarming model for faster response."
+                )
+                await asyncio.sleep(5)  # Delay to avoid rate limits
+            except Exception as e:
+                logger.error(f"Skipping model {model_info['name']} due to error: {str(e)}")
+                continue
+        logger.info("Prewarming complete.")
+    except Exception as e:
+        logger.error(f"Prewarming failed: {str(e)}")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -49,15 +78,17 @@ async def lifespan(app: FastAPI):
         logger.info("✅ Database initialized")
 
         # Setup auth manager with database
-        auth_manager.db = db_manager
-        logger.info("✅ Authentication manager configured")
+        # auth_manager.db = db_manager
+      #  logger.info("✅ Authentication manager configured")
 
         # AI engine is already initialized
         logger.info("✅ AI engine ready")
 
-        # Background tasks could go here
-        logger.info("🎭 The Third Voice AI Backend is ready!")
+        # Start prewarming in background
+        logger.info("⚡ Prewarming AI models in background...")
+        asyncio.create_task(prewarm_ai_models())
 
+        logger.info("🎭 The Third Voice AI Backend is ready!")
         yield
 
     except Exception as e:
@@ -91,7 +122,7 @@ app.add_middleware(SlowAPIMiddleware)
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.get_cors_origins(),  # Changed from settings.ALLOWED_ORIGINS
+    allow_origins=settings.get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -152,7 +183,7 @@ async def general_exception_handler(request: Request, exc: Exception):
     )
 
 # Include routers
-app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+# app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(contacts.router, prefix="/api/contacts", tags=["Contacts"])
 app.include_router(messages.router, prefix="/api/messages", tags=["Messages"])
 app.include_router(feedback.router, prefix="/api/feedback", tags=["Feedback"])
@@ -169,17 +200,17 @@ async def root(request: Request):
         "born_from": "Built with love during 15 months in detention, for Samantha and all families",
         "philosophy": "It's not just a chatbot. It's the voice of compassion when the other person can't hear you.",
         "breakthrough": "August 20, 2025: First transformation achieved 8/10 healing score",
-        "dedication": "For Samantha. For All. 💙",
+        "dedication": "For 6 year old Samantha. For All. 💙",
         "version": "1.0.0",
         "status": "ready to heal conversations",
         "contexts": ["romantic", "coparenting", "family", "workplace", "friends"],
         "docs": "/docs",
         "health": "/api/health",
-        "demo": "/api/auth/demo",
+      #  "demo": "/api/auth/demo",
         "timestamp": datetime.now()
     }
 
-# Health check endpoint (duplicate for convenience)
+# Health check endpoint
 @app.get("/health", response_model=HealthCheck)
 async def health_check():
     """Quick health check endpoint"""
@@ -189,10 +220,10 @@ async def health_check():
         return HealthCheck(
             status="healthy",
             database=db_health.get("database", False),
-            ai_engine=True,  # ai_engine is always initialized
+            ai_engine=True,
             timestamp=datetime.now(),
             version="1.0.0",
-            uptime_seconds=0.0,  # Could implement actual uptime tracking
+            uptime_seconds=0.0,
             demo_users_active=len(db_manager._demo_contacts)
         )
     except Exception as e:
@@ -207,12 +238,4 @@ async def health_check():
         )
 
 if __name__ == "__main__":
-    # Development server
-    uvicorn.run(
-        "main:app",
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=settings.ENVIRONMENT == "development",
-        log_level=settings.LOG_LEVEL.lower(),
-        reload_dirs=["src"] if settings.ENVIRONMENT == "development" else None
-    )
+    uvicorn.run(**get_uvicorn_config())

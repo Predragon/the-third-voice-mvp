@@ -20,7 +20,7 @@ from ...auth.auth_manager import (
     DemoResponse,
     RefreshTokenRequest
 )
-from ...data.schemas import UserCreate, UserResponse, ErrorResponse
+from ...data.schemas import UserCreate, UserResponse, ContactCreate
 from ...core.exceptions import (
     AuthenticationException,
     ValidationException,
