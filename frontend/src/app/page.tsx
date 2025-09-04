@@ -510,9 +510,8 @@ export default function TheThirdVoice() {
                   
                   <div className="space-y-2 sm:space-y-3">
                     {(() => {
-                      // Handle both suggested_responses (array) and suggested_response (string) formats
-                      let responses = [];
-                      
+                      // Handle both suggested_responses (array) and suggested_response (string) formats                      
+                      let responses: string[] = [];
                       if (result.suggested_responses && Array.isArray(result.suggested_responses) && result.suggested_responses.length > 0) {
                         responses = result.suggested_responses;
                       } else if (result.suggested_response && result.suggested_response.trim()) {
