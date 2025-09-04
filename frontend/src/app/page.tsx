@@ -1,9 +1,26 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Copy, Heart, MessageSquare, Lightbulb, ChevronDown, Brain } from 'lucide-react';
+import { Copy, Heart, Lightbulb, ChevronDown, Brain } from 'lucide-react';
 
 const API_BASE = 'http://localhost:8000';
+
+interface ApiResult {
+  explanation?: string;
+  suggested_responses?: string[];
+  suggested_response?: string;
+  healing_score?: number;
+  sentiment?: string;
+  emotional_state?: string;
+  model_used?: string;
+  subtext?: string;
+  needs?: string[];
+  analysis_depth?: string;
+  communication_patterns?: string[];
+  relationship_dynamics?: string[];
+  transformed_message?: string;
+  alternatives?: string[];
+}
 
 export default function TheThirdVoice() {
   const [step, setStep] = useState(1); // 1: context, 2: mode, 3: input, 4: results
@@ -12,7 +29,7 @@ export default function TheThirdVoice() {
   const [useDeepAnalysis, setUseDeepAnalysis] = useState(false);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<ApiResult | null>(null);
   const [copyStatus, setCopyStatus] = useState('');
 
   const relationships = [
@@ -506,7 +523,7 @@ export default function TheThirdVoice() {
                         return responses.map((response: string, index: number) => (
                           <div key={index} className="bg-gray-50 p-3 sm:p-4 rounded-lg">
                             <p className="text-gray-800 italic mb-2 sm:mb-3 text-sm sm:text-base leading-relaxed">
-                              "{response}"
+                              &ldquo;{response}&rdquo;
                             </p>
                             <button
                               onClick={() => copyToClipboard(response)}
@@ -576,7 +593,7 @@ export default function TheThirdVoice() {
                               {uniqueResponses.map((response, index) => (
                                 <div key={index} className="bg-white p-3 rounded-lg shadow-sm">
                                   <p className="text-gray-800 italic mb-2 text-sm leading-relaxed">
-                                    "{response}"
+                                    &ldquo;{response}&rdquo;
                                   </p>
                                   <button
                                     onClick={() => copyToClipboard(response)}
@@ -631,7 +648,7 @@ export default function TheThirdVoice() {
                   
                   <div className="bg-green-50 p-3 sm:p-4 rounded-lg mb-3 sm:mb-4">
                     <p className="text-gray-800 italic text-sm sm:text-lg leading-relaxed">
-                      "{result.transformed_message}"
+                      &ldquo;{result.transformed_message}&rdquo;
                     </p>
                   </div>
 
@@ -666,7 +683,7 @@ export default function TheThirdVoice() {
                       {result.alternatives.map((alternative: string, index: number) => (
                         <div key={index} className="bg-gray-50 p-3 sm:p-4 rounded-lg">
                           <p className="text-gray-800 italic mb-2 sm:mb-3 text-sm sm:text-base leading-relaxed">
-                            "{alternative}"
+                            &ldquo;{alternative}&rdquo;
                           </p>
                           <button
                             onClick={() => copyToClipboard(alternative)}
