@@ -654,7 +654,6 @@ export default function TheThirdVoice() {
                   <div className="flex gap-2 mb-3 sm:mb-4">
                     <button
                       onClick={() => copyToClipboard(result.transformed_message || '')}
-                     # onClick={() => copyToClipboard(result.transformed_message)}
                       className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 active:bg-green-800 transition-colors flex items-center text-xs sm:text-sm"
                       style={{ minHeight: '44px', minWidth: '44px' }}
                     >
