@@ -1,21 +1,21 @@
 /** @type {import('next').NextConfig} */
+const withPWA = require('next-pwa')({
+  dest: 'public', // Outputs service worker and manifest
+  disable: process.env.NODE_ENV === 'development', // Disable PWA in dev
+});
+
 const nextConfig = {
-  output: 'export', // Required for Cloudflare Pages (static site)
-  trailingSlash: true, // Ensures consistent URLs
+  output: 'export', // For Cloudflare Pages
+  trailingSlash: true,
   images: {
-    unoptimized: true, // Disable Next.js image opt for Cloudflare
-  },
-  // PWA support (if using next-pwa)
-  pwa: {
-    dest: 'public',
-    disable: process.env.NODE_ENV === 'development',
+    unoptimized: true, // Cloudflare Pages compatibility
   },
   env: {
     NEXT_PUBLIC_API_URL:
       process.env.NODE_ENV === 'development'
-        ? 'https://api.thethirdvoice.ai' // Or dev-api if separate
+        ? 'https://api.thethirdvoice.ai'
         : 'https://api.thethirdvoice.ai',
   },
 };
 
-export default nextConfig;
+module.exports = withPWA(nextConfig);
