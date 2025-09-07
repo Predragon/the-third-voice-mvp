@@ -37,7 +37,7 @@ const nextConfig = {
   },
   
   // Webpack config optimized for Cloudflare + PWA
-  webpack: (config: any, { dev, isServer }: any) => {
+  webpack: (config, { dev, isServer }) => {
     // Only disable cache in Cloudflare environment
     if (process.env.CF_PAGES) {
       config.cache = false;
