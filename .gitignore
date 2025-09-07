@@ -20,6 +20,7 @@ ENV/
 .env.local
 .env.production
 .env.staging
+.env.development
 *.env
 
 # Database
@@ -62,3 +63,4 @@ stop-thirdvoice.sh
 test_api.sh
 frontend.log
 backend.log
+package.json.backup_*
