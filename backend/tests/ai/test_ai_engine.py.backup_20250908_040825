@@ -2,12 +2,12 @@
 import pytest
 import asyncio
 from unittest.mock import Mock, AsyncMock, patch
-from src.ai.ai_engine import AIEngine, AIResponse, AnalysisDepth
+from backend.src.ai.ai_engine import AIEngine, AIResponse, AnalysisDepth
 
 def test_ai_engine_import():
     """Test that AI engine can be imported"""
     try:
-        from src.ai.ai_engine import AIEngine
+        from backend.src.ai.ai_engine import AIEngine
         assert True
         print("✅ AI Engine import successful")
     except ImportError as e:
@@ -192,8 +192,8 @@ async def test_process_message_with_mock():
         mock_post.return_value = mock_response
         
         # Mock database operations
-        with patch('src.data.crud.CacheCRUD.get_cached_response', return_value=None), \
-             patch('src.data.crud.CacheCRUD.cache_response'):
+        with patch('backend.src.data.crud.CacheCRUD.get_cached_response', return_value=None), \
+             patch('backend.src.data.crud.CacheCRUD.cache_response'):
             
             engine = AIEngine()
             response = await engine.process_message(
