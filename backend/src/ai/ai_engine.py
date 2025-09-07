@@ -1,46 +1,24 @@
 """
-AI Engine Module - Unified OpenAI/OpenRouter + Content-Filter Resistant Analysis
-Combines both standard OpenAI chat completions and advanced message analysis
+AI Engine Module - Content-Filter Resistant
 The Third Voice - Works around AI model limitations
 Built to handle real human communication
 Updated for Peewee ORM and new structure
 Added Deep Analysis functionality
+Optimized prewarming removed - handled by main.py lifespan
 """
 
 import hashlib
 import json
 import httpx
-import openai
-import os
 from enum import Enum
 from typing import Optional, Dict, Any, List, Tuple
 from datetime import datetime
 import asyncio
-import logging
 
-# Update imports - adjust these paths based on your actual structure
-try:
-    from ..core.config import settings
-    from ..data.schemas import MessageType, ContextType, SentimentType
-    from ..data.crud import MessageCRUD, CacheCRUD
-except ImportError:
-    # Fallback for direct usage
-    class settings:
-        OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-        OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-        TEMPERATURE = 0.7
-    
-    # Mock enums for fallback
-    class MessageType(Enum):
-        INTERPRET = "interpret"
-        TRANSFORM = "transform"
-    
-    class SentimentType(Enum):
-        POSITIVE = "positive"
-        NEGATIVE = "negative"
-        NEUTRAL = "neutral"
-
-logger = logging.getLogger(__name__)
+# Update imports
+from ..core.config import settings
+from ..data.schemas import MessageType, ContextType, SentimentType
+from ..data.crud import MessageCRUD, CacheCRUD
 
 
 class AnalysisDepth(Enum):
@@ -49,7 +27,7 @@ class AnalysisDepth(Enum):
 
 
 class AIResponse:
-    """AI Response data structure for advanced analysis"""
+    """AI Response data structure"""
     def __init__(self, 
                  transformed_message: str,
                  healing_score: int = 5,
@@ -64,9 +42,7 @@ class AIResponse:
                  analysis_depth: str = AnalysisDepth.QUICK.value,
                  suggested_responses: List[str] = None,
                  communication_patterns: List[str] = None,
-                 relationship_dynamics: List[str] = None,
-                 alternatives: List[str] = None,
-                 usage: Dict[str, int] = None):
+                 relationship_dynamics: List[str] = None):
         self.transformed_message = transformed_message
         self.healing_score = healing_score
         self.sentiment = sentiment
@@ -81,260 +57,29 @@ class AIResponse:
         self.suggested_responses = suggested_responses or []
         self.communication_patterns = communication_patterns or []
         self.relationship_dynamics = relationship_dynamics or []
-        self.alternatives = alternatives or []
-        self.usage = usage or {}
 
 
 class AIEngine:
-    """
-    Unified AI Engine combining standard OpenAI chat completions 
-    and advanced message analysis with content-filter resistance
-    """
+    """AI engine that works around content filtering with deep analysis capabilities"""
     
     def __init__(self):
-        # Standard OpenAI/OpenRouter configuration
-        self.api_key = os.getenv("OPENROUTER_API_KEY")
-        self.base_url = "https://openrouter.ai/api/v1"
-        self.default_model = "anthropic/claude-3-haiku"  # Default for simple chat
-        
-        # Configure OpenAI client for OpenRouter
-        if self.api_key:
-            self.openai_client = openai.OpenAI(
-                api_key=self.api_key,
-                base_url=self.base_url
-            )
-        else:
-            logger.warning("No OPENROUTER_API_KEY found in environment")
-            self.openai_client = None
-        
-        # Advanced analysis models (less restrictive for sensitive content)
-        self.analysis_models = [
+        # Try models in order of preference - some are less restrictive
+        self.models = [
             {"id": "deepseek/deepseek-chat-v3.1:free", "name": "DeepSeek Chat v3.1", "note": "Usually less restrictive"},
             {"id": "deepseek/deepseek-r1-distill-llama-70b:free", "name": "DeepSeek R1 Distill", "note": "Alternative option"},
             {"id": "meta-llama/llama-3.3-70b-instruct:free", "name": "Llama 3.3 70B", "note": "Meta's instruction model"},
             {"id": "qwen/qwen-2.5-72b-instruct:free", "name": "Qwen 2.5 72B", "note": "Massive 72B model - excellent for analysis"}
         ]
         
-        # HTTP client for advanced analysis
-        self.http_client = httpx.AsyncClient(timeout=30.0)
+        # HTTP client for better async performance
+        self.client = httpx.AsyncClient(timeout=30.0)
         
         # Prewarming flag for lazy initialization
         self._prewarmed = False
 
-    # ===========================================
-    # STANDARD OPENAI CHAT COMPLETIONS METHODS
-    # ===========================================
-    
-    async def _make_api_call(self, model: str, messages: List[Dict[str, str]], max_tokens: int = 1000, temperature: float = 0.7) -> Optional[Dict[str, Any]]:
-        """Make API call to OpenRouter using httpx"""
-        if not self.api_key:
-            return {"error": "AI client not configured - missing API key"}
-            
-        try:
-            response = await self.http_client.post(
-                f"{self.base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": model,
-                    "messages": messages,
-                    "max_tokens": max_tokens,
-                    "temperature": temperature
-                }
-            )
-            
-            if response.status_code == 200:
-                return response.json()
-            else:
-                return {
-                    "error": f"API request failed with status {response.status_code}: {response.text}"
-                }
-                
-        except httpx.RequestError as e:
-            return {"error": f"Network error: {str(e)}"}
-        except Exception as e:
-            return {"error": f"Unexpected error: {str(e)}"}
-    
-    def generate_response(self, 
-                         input_data: Dict[str, Any], 
-                         model: Optional[str] = None,
-                         **kwargs) -> Dict[str, Any]:
-        """
-        Generate a response using the AI model (synchronous version).
-        
-        Args:
-            input_data: Dictionary containing the input data
-            model: Optional model override
-            **kwargs: Additional parameters
-        
-        Returns:
-            Dictionary containing the AI response
-        """
-        # Run async version synchronously
-        import asyncio
-        
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # If we're already in an async context, we need to handle this differently
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(
-                        lambda: asyncio.run(self.generate_response_async(input_data, model, **kwargs))
-                    )
-                    return future.result()
-            else:
-                return loop.run_until_complete(self.generate_response_async(input_data, model, **kwargs))
-        except Exception as e:
-            logger.error(f"Error generating AI response: {str(e)}")
-            return {
-                "error": str(e),
-                "response": None
-            }
-    
-    def generate_chat_response(self, 
-                              messages: List[Dict[str, str]], 
-                              model: Optional[str] = None,
-                              **kwargs) -> Dict[str, Any]:
-        """
-        Generate a response for a chat conversation (synchronous version).
-        
-        Args:
-            messages: List of message dictionaries with 'role' and 'content'
-            model: Optional model override
-            **kwargs: Additional parameters
-        
-        Returns:
-            Dictionary containing the AI response
-        """
-        # Run async version synchronously
-        import asyncio
-        
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # If we're already in an async context, we need to handle this differently
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(
-                        lambda: asyncio.run(self.generate_chat_response_async(messages, model, **kwargs))
-                    )
-                    return future.result()
-            else:
-                return loop.run_until_complete(self.generate_chat_response_async(messages, model, **kwargs))
-        except Exception as e:
-            logger.error(f"Error generating chat response: {str(e)}")
-            return {
-                "error": str(e),
-                "response": None
-            }
-
-    async def generate_response_async(self, 
-                                    input_data: Dict[str, Any], 
-                                    model: Optional[str] = None,
-                                    **kwargs) -> Dict[str, Any]:
-        """Async version of generate_response"""
-        try:
-            # Extract message from input_data
-            if isinstance(input_data, dict):
-                message = input_data.get("message", input_data.get("prompt", str(input_data)))
-            else:
-                message = str(input_data)
-            
-            # Prepare the messages for the API call
-            messages = [
-                {"role": "system", "content": "You are a helpful AI assistant."},
-                {"role": "user", "content": message}
-            ]
-            
-            # Make the API call
-            result = await self._make_api_call(
-                model=model or self.default_model,
-                messages=messages,
-                max_tokens=kwargs.get("max_tokens", 1000),
-                temperature=kwargs.get("temperature", 0.7)
-            )
-            
-            if "error" in result:
-                return {
-                    "error": result["error"],
-                    "response": None
-                }
-            
-            # Extract the response
-            ai_response = result["choices"][0]["message"]["content"]
-            
-            return {
-                "response": ai_response,
-                "model": model or self.default_model,
-                "usage": result.get("usage", {})
-            }
-            
-        except Exception as e:
-            logger.error(f"Error generating AI response: {str(e)}")
-            return {
-                "error": str(e),
-                "response": None
-            }
-
-    async def generate_chat_response_async(self, 
-                                         messages: List[Dict[str, str]], 
-                                         model: Optional[str] = None,
-                                         **kwargs) -> Dict[str, Any]:
-        """Async version of generate_chat_response"""
-        try:
-            # Make the API call
-            result = await self._make_api_call(
-                model=model or self.default_model,
-                messages=messages,
-                max_tokens=kwargs.get("max_tokens", 1000),
-                temperature=kwargs.get("temperature", 0.7)
-            )
-            
-            if "error" in result:
-                return {
-                    "error": result["error"],
-                    "response": None
-                }
-            
-            # Extract the response
-            ai_response = result["choices"][0]["message"]["content"]
-            
-            return {
-                "response": ai_response,
-                "model": model or self.default_model,
-                "usage": result.get("usage", {})
-            }
-            
-        except Exception as e:
-            logger.error(f"Error generating chat response: {str(e)}")
-            return {
-                "error": str(e),
-                "response": None
-            }
-
-    def set_model(self, model: str) -> None:
-        """Set the default model for the AI engine"""
-        self.default_model = model
-    
-    def get_available_models(self) -> List[str]:
-        """Get list of available models for standard chat"""
-        return [
-            "anthropic/claude-3-haiku",
-            "anthropic/claude-3-sonnet",
-            "openai/gpt-3.5-turbo",
-            "openai/gpt-4"
-        ]
-
-    # ===========================================
-    # ADVANCED ANALYSIS METHODS
-    # ===========================================
-
     def _get_model_display_name(self, model_id: str) -> str:
         """Get user-friendly model name"""
-        for model in self.analysis_models:
+        for model in self.models:
             if model["id"] == model_id:
                 return model["name"]
         return model_id.split("/")[-1].replace(":free", "")
@@ -364,20 +109,21 @@ class AIEngine:
         content = f"{message}:{context}:{message_type}:{analysis_depth}"
         return hashlib.md5(content.encode()).hexdigest()
     
-    async def _try_analysis_model(self, model_info: dict, system_prompt: str, user_prompt: str, max_tokens: int = 1000) -> Optional[dict]:
-        """Try a specific analysis model and return the result"""
+    async def _try_model(self, model_info: dict, system_prompt: str, user_prompt: str, max_tokens: int = 1000) -> Optional[dict]:
+        """Try a specific model and return the result"""
         model_id = model_info["id"]
-        print(f"🤖 Trying analysis model: {model_info['name']} ({model_id})")
+        print(f"🤖 Trying model: {model_info['name']} ({model_id})")
+        api_key = settings.OPENROUTER_API_KEY
         
-        if not self.api_key:
+        if not api_key:
             print("❌ ERROR: No OpenRouter API key found!")
             return None
             
         try:
-            response = await self.http_client.post(
-                f"{self.base_url}/chat/completions",
+            response = await self.client.post(
+                f"{settings.OPENROUTER_BASE_URL}/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {self.api_key}",
+                    "Authorization": f"Bearer {api_key}",
                     "Content-Type": "application/json"
                 },
                 json={
@@ -387,7 +133,7 @@ class AIEngine:
                         {"role": "user", "content": user_prompt}
                     ],
                     "max_tokens": max_tokens,
-                    "temperature": getattr(settings, 'TEMPERATURE', 0.7)
+                    "temperature": settings.TEMPERATURE
                 }
             )
             
@@ -396,7 +142,7 @@ class AIEngine:
                 result = response.json()
                 if "choices" in result and result["choices"]:
                     return result
-            print(f"❌ Analysis model {model_info['name']} failed: Status {response.status_code}")
+            print(f"❌ Model {model_info['name']} failed: Status {response.status_code}")
             print(f"   Error details: {response.text[:300] if response.text else 'No response'}")
             return None
         except httpx.RequestError as e:
@@ -407,15 +153,15 @@ class AIEngine:
             return None
 
     async def lazy_prewarm(self):
-        """Lazy prewarming - warm primary analysis model on first use"""
+        """Lazy prewarming - warm primary model on first use"""
         if self._prewarmed:
             return
             
         try:
-            print("🔥 Lazy prewarming primary analysis model...")
-            primary_model = self.analysis_models[0]
+            print("🔥 Lazy prewarming primary model...")
+            primary_model = self.models[0]
             
-            result = await self._try_analysis_model(
+            result = await self._try_model(
                 model_info=primary_model,
                 system_prompt="You are ready.",
                 user_prompt="Ready",
@@ -507,8 +253,8 @@ Respond with JSON:
                             message: str, 
                             contact_context: str, 
                             message_type: str,
-                            contact_id: str = "", 
-                            user_id: str = "",
+                            contact_id: str, 
+                            user_id: str,
                             analysis_depth: str = AnalysisDepth.QUICK.value) -> AIResponse:
         """Process message with multiple model fallbacks and caching"""
         print(f"🎙️ Processing message ({analysis_depth}): {message[:50]}...")
@@ -516,15 +262,9 @@ Respond with JSON:
         # Lazy prewarm on first use
         await self.lazy_prewarm()
         
-        # Check cache first (if CRUD is available)
-        cached_response = None
-        message_hash = None
-        try:
-            message_hash = self._create_message_hash(message, contact_context, message_type, analysis_depth)
-            if 'CacheCRUD' in globals():
-                cached_response = CacheCRUD.get_cached_response(message_hash, contact_id)
-        except:
-            pass  # Continue without caching if not available
+        # Check cache first
+        message_hash = self._create_message_hash(message, contact_context, message_type, analysis_depth)
+        cached_response = CacheCRUD.get_cached_response(message_hash, contact_id)
         
         if cached_response:
             print("⚡ Using cached response")
@@ -551,14 +291,14 @@ Respond with JSON:
                 system_prompt, user_prompts = self._get_quick_analysis_prompts(message, contact_context)
                 max_tokens = 1000
 
-        # Try each analysis model
+        # Try each model
         used_model_id = None
         used_model_name = None
         
-        for model_info in self.analysis_models:
+        for model_info in self.models:
             for user_prompt in user_prompts:
                 try:
-                    result = await self._try_analysis_model(model_info, system_prompt, user_prompt, max_tokens)
+                    result = await self._try_model(model_info, system_prompt, user_prompt, max_tokens)
                     if result:
                         ai_text = result["choices"][0]["message"]["content"]
                         print(f"✅ Got response from {model_info['name']}: {ai_text[:50]}...")
@@ -577,15 +317,6 @@ Respond with JSON:
                             print(f"⚠️ Failed to parse JSON from {model_info['name']}")
                             continue
                         
-                        # Extract usage info if available
-                        usage_info = {}
-                        if "usage" in result:
-                            usage_info = {
-                                "prompt_tokens": result["usage"].get("prompt_tokens", 0),
-                                "completion_tokens": result["usage"].get("completion_tokens", 0),
-                                "total_tokens": result["usage"].get("total_tokens", 0)
-                            }
-                        
                         # Create AI response object
                         ai_response = AIResponse(
                             transformed_message=ai_data.get("transformed_message", ""),
@@ -601,30 +332,28 @@ Respond with JSON:
                             analysis_depth=analysis_depth,
                             suggested_responses=ai_data.get("suggested_responses", []),
                             communication_patterns=ai_data.get("communication_patterns", []),
-                            relationship_dynamics=ai_data.get("relationship_dynamics", []),
-                            alternatives=ai_data.get("alternatives", []),
-                            usage=usage_info
+                            relationship_dynamics=ai_data.get("relationship_dynamics", [])
                         )
                         
                         # For transform responses, ensure we have the main message
                         if message_type == MessageType.TRANSFORM.value and not ai_response.transformed_message:
-                            if ai_response.alternatives:
-                                ai_response.transformed_message = ai_response.alternatives[0]
+                            alternatives = ai_data.get("alternatives", [])
+                            if alternatives:
+                                ai_response.transformed_message = alternatives[0]
                         
-                        # Cache the response (if available)
+                        # Cache the response
                         try:
-                            if 'CacheCRUD' in globals() and message_hash:
-                                CacheCRUD.cache_response(
-                                    contact_id=contact_id,
-                                    user_id=user_id,
-                                    message_hash=message_hash,
-                                    context=contact_context,
-                                    response=ai_response.transformed_message or ai_response.explanation,
-                                    model=used_model_name,
-                                    healing_score=ai_response.healing_score,
-                                    sentiment=SentimentType(ai_response.sentiment) if hasattr(SentimentType, ai_response.sentiment.upper()) else None,
-                                    emotional_state=ai_response.emotional_state
-                                )
+                            CacheCRUD.cache_response(
+                                contact_id=contact_id,
+                                user_id=user_id,
+                                message_hash=message_hash,
+                                context=contact_context,
+                                response=ai_response.transformed_message or ai_response.explanation,
+                                model=used_model_name,
+                                healing_score=ai_response.healing_score,
+                                sentiment=SentimentType(ai_response.sentiment) if ai_response.sentiment in [s.value for s in SentimentType] else None,
+                                emotional_state=ai_response.emotional_state
+                            )
                         except Exception as cache_error:
                             print(f"⚠️ Failed to cache response: {cache_error}")
                         
@@ -635,7 +364,7 @@ Respond with JSON:
                     continue
 
         # Fallback responses
-        print("💥 All analysis models failed, using intelligent fallback")
+        print("💥 All models failed, using intelligent fallback")
         return self._get_fallback_response(message, message_type, analysis_depth)
 
     def _get_fallback_response(self, message: str, message_type: str, analysis_depth: str) -> AIResponse:
@@ -735,187 +464,30 @@ Respond with JSON:
             ]
         )
 
-    # ===========================================
-    # CONVENIENCE METHODS
-    # ===========================================
-
-    async def quick_analyze(self, message: str, contact_context: str, contact_id: str = "", user_id: str = "") -> AIResponse:
+    async def quick_analyze(self, message: str, contact_context: str, contact_id: str, user_id: str) -> AIResponse:
         """Quick analysis shortcut"""
         return await self.process_message(
             message, contact_context, MessageType.INTERPRET.value, 
             contact_id, user_id, AnalysisDepth.QUICK.value
         )
 
-    async def deep_analyze(self, message: str, contact_context: str, contact_id: str = "", user_id: str = "") -> AIResponse:
+    async def deep_analyze(self, message: str, contact_context: str, contact_id: str, user_id: str) -> AIResponse:
         """Deep analysis shortcut"""
         return await self.process_message(
             message, contact_context, MessageType.INTERPRET.value, 
             contact_id, user_id, AnalysisDepth.DEEP.value
         )
 
-    async def transform(self, message: str, contact_context: str, contact_id: str = "", user_id: str = "") -> AIResponse:
+    async def transform(self, message: str, contact_context: str, contact_id: str, user_id: str) -> AIResponse:
         """Transform message shortcut"""
         return await self.process_message(
             message, contact_context, MessageType.TRANSFORM.value, 
             contact_id, user_id, AnalysisDepth.QUICK.value
         )
 
-    def get_analysis_models(self) -> List[Dict[str, str]]:
-        """Get list of available models for advanced analysis"""
-        return [
-            {
-                "id": model["id"],
-                "name": model["name"],
-                "note": model.get("note", "")
-            }
-            for model in self.analysis_models
-        ]
-
     async def cleanup(self):
         """Cleanup resources"""
-        if hasattr(self, 'http_client'):
-            await self.http_client.aclose()
-
-    def __del__(self):
-        """Destructor to ensure cleanup"""
-        try:
-            if hasattr(self, 'http_client') and not self.http_client.is_closed:
-                import asyncio
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        loop.create_task(self.http_client.aclose())
-                    else:
-                        loop.run_until_complete(self.http_client.aclose())
-                except:
-                    pass  # Best effort cleanup
-        except:
-            pass
-
+        await self.client.aclose()
 
 # Global AI engine instance
 ai_engine = AIEngine()
-
-
-# ===========================================
-# USAGE EXAMPLES AND DOCUMENTATION
-# ===========================================
-
-"""
-USAGE EXAMPLES:
-
-1. Standard OpenAI-style chat completions:
-   
-   # Synchronous
-   result = ai_engine.generate_response({"message": "Hello, how are you?"})
-   print(result["response"])
-   
-   # Asynchronous
-   result = await ai_engine.generate_response_async({"message": "Hello, how are you?"})
-   print(result["response"])
-
-2. Chat conversation:
-   
-   messages = [
-       {"role": "system", "content": "You are a helpful assistant."},
-       {"role": "user", "content": "What's the weather like?"},
-       {"role": "assistant", "content": "I don't have access to real-time weather data."},
-       {"role": "user", "content": "That's okay, just make something up."}
-   ]
-   
-   result = await ai_engine.generate_chat_response_async(messages)
-   print(result["response"])
-
-3. Advanced message analysis:
-   
-   # Quick analysis
-   response = await ai_engine.quick_analyze(
-       message="I'm so frustrated with everything right now!",
-       contact_context="Close friend going through divorce",
-       contact_id="friend_123",
-       user_id="user_456"
-   )
-   print(f"Explanation: {response.explanation}")
-   print(f"Suggested responses: {response.suggested_responses}")
-   
-   # Deep analysis
-   response = await ai_engine.deep_analyze(
-       message="I hate my life and everyone in it",
-       contact_context="Teenager struggling with depression",
-       contact_id="teen_789",
-       user_id="parent_101"
-   )
-   print(f"Communication patterns: {response.communication_patterns}")
-   print(f"Relationship dynamics: {response.relationship_dynamics}")
-   
-   # Message transformation
-   response = await ai_engine.transform(
-       message="You're such an idiot for not understanding this",
-       contact_context="Frustrated partner during argument",
-       contact_id="partner_555",
-       user_id="user_456"
-   )
-   print(f"Transformed: {response.transformed_message}")
-   print(f"Alternatives: {response.alternatives}")
-
-4. Model management:
-   
-   # Set default model for standard chat
-   ai_engine.set_model("openai/gpt-4")
-   
-   # Get available models
-   standard_models = ai_engine.get_available_models()
-   analysis_models = ai_engine.get_analysis_models()
-   
-   print("Standard models:", standard_models)
-   print("Analysis models:", analysis_models)
-
-5. Resource cleanup:
-   
-   # Always cleanup when done
-   await ai_engine.cleanup()
-
-CONFIGURATION:
-
-Set the following environment variable:
-- OPENROUTER_API_KEY: Your OpenRouter API key
-
-The engine will automatically:
-- Use less restrictive models for sensitive content analysis
-- Cache responses to improve performance
-- Fall back to intelligent responses if all models fail
-- Handle content filtering gracefully
-- Provide detailed psychological insights for relationship communication
-
-ERROR HANDLING:
-
-The engine includes comprehensive error handling:
-- Network timeouts and retries
-- Model fallbacks when one fails
-- Graceful degradation to fallback responses
-- Detailed logging for debugging
-- Safe cleanup of resources
-
-FEATURES:
-
-Standard Chat Features:
-- OpenAI-compatible API interface
-- Support for conversation history
-- Customizable models and parameters
-- Synchronous and asynchronous methods
-- Proper error handling and logging
-
-Advanced Analysis Features:
-- Content-filter resistant models
-- Deep psychological analysis
-- Message transformation and healing
-- Relationship dynamic insights
-- Communication pattern analysis
-- Intelligent caching system
-- Fallback responses for all scenarios
-- Support for sensitive/difficult conversations
-
-This unified engine provides the best of both worlds:
-- Simple, reliable chat completions for general use
-- Advanced, therapeutic analysis for complex human communication
-"""
