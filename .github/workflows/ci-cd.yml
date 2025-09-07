@@ -84,6 +84,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Scan for vulnerabilities
+      if: github.event_name == 'pull_request'  # ← FIXED: Only run on PRs
       uses: actions/dependency-review-action@v3
 
   # Deployment (only runs when all tests pass)
