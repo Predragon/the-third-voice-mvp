@@ -3,7 +3,10 @@
 import React, { useState } from 'react';
 import { Copy, Heart, Lightbulb, ChevronDown, Brain } from 'lucide-react';
 
-const API_BASE = 'http://localhost:8000';
+#const API_BASE = 'http://localhost:8000';
+const API_BASE = process.env.NODE_ENV === 'development' 
+  ? 'http://localhost:8000' 
+  : 'https://api.thethirdvoice.ai';
 
 interface ApiResult {
   explanation?: string;
