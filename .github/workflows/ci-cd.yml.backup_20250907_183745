@@ -2,15 +2,29 @@ name: ThirdVoice CI/CD Pipeline
 
 on:
   push:
-    branches: [ develop ]
+    branches: [ main, develop ]
   pull_request:
-    branches: [ develop ]
+    branches: [ main ]
 
 jobs:
-  # Backend Testing - simplified for initial setup
+  # Backend Testing
   test-backend:
     runs-on: ubuntu-latest
-    continue-on-error: true  # Allows partial success while setting up
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -24,28 +38,19 @@ jobs:
       run: |
         cd backend
         pip install -r requirements.txt
-        pip install pytest
+        pip install pytest pytest-cov
 
-    - name: Run basic backend checks
+    - name: Run backend tests
       run: |
         cd backend
-        echo "✅ Python version: $(python --version)"
-        echo "✅ Pip version: $(pip --version)"
-        echo "✅ Testing basic imports..."
-        python -c "import sys; print('Python path:', sys.path)"
-        python -c "print('Backend setup successful!')"
-        
-        # Run any existing tests without failing the build
-        if [ -f "tests/test_example.py" ]; then
-          echo "Running existing tests..."
-          python -m pytest tests/ -v
-        else
-          echo "No test files found yet - creating basic test..."
-          mkdir -p tests
-          echo "def test_basic():" > tests/test_basic.py
-          echo "    assert True" >> tests/test_basic.py
-          python -m pytest tests/ -v
-        fi
+        python -m pytest tests/ -v --cov=src --cov-report=xml
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./backend/coverage.xml
 
   # Frontend Testing
   test-frontend:
@@ -69,7 +74,7 @@ jobs:
     - name: Run frontend tests
       run: |
         cd frontend
-        npm test -- --watchAll=false --passWithNoTests
+        npm test -- --watchAll=false
 
     - name: Build frontend
       run: |
@@ -86,20 +91,21 @@ jobs:
     - name: Scan for vulnerabilities
       uses: actions/dependency-review-action@v3
 
-  # Deployment (only runs when all tests pass)
+    - name: Semgrep SAST scan
+      uses: returntocorp/semgrep-action@v1
+
+  # Deployment (only runs on main branch)
   deploy:
     needs: [test-backend, test-frontend, security-scan]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/develop'
+    if: github.ref == 'refs/heads/main'
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Deployment preparation
+    - name: Deploy to production
       run: |
-        echo "🎉 All tests passed! Ready for deployment."
-        echo "Branch: $GITHUB_REF"
-        echo "Add your deployment commands here:"
-        echo "# ./scripts/deploy.sh"
-        echo "# npm run deploy"
+        echo "Deployment would happen here!"
+        # Add your deployment commands
+        # For example: ./scripts/deploy.sh

@@ -1,0 +1,28 @@
+test-backend:
+  runs-on: ubuntu-latest
+  steps:
+  - name: Checkout code
+    uses: actions/checkout@v4
+
+  - name: Set up Python 3.10
+    uses: actions/setup-python@v4
+    with:
+      python-version: '3.10'
+
+  - name: Install backend dependencies
+    run: |
+      cd backend
+      pip install -r requirements.txt
+      pip install pytest
+
+  - name: Run basic backend tests
+    run: |
+      cd backend
+      # First, just run a simple test to verify setup works
+      python -c "print('Backend setup successful!')"
+      # Then run any existing tests
+      if [ -f "tests/test_example.py" ]; then
+        python -m pytest tests/test_example.py -v
+      else
+        echo "No test files found yet - this is OK for now"
+      fi
