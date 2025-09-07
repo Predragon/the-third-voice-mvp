@@ -54,20 +54,6 @@ class Contact(BaseModel):
     class Meta:
         table_name = 'contacts'
 
-class Conversation(BaseModel):
-    """Conversation model to store chat sessions"""
-    id = CharField(primary_key=True, default=lambda: str(uuid.uuid4()))
-    title = CharField(max_length=255, null=True)
-    user = ForeignKeyField(User, backref='conversations', on_delete='CASCADE')
-    contact = ForeignKeyField(Contact, backref='conversations', on_delete='CASCADE', null=True)
-    is_active = BooleanField(default=True)
-    metadata = TextField(null=True)  # JSON string for additional data
-    created_at = DateTimeField(default=datetime.now)
-    updated_at = DateTimeField(default=datetime.now)
-    
-    class Meta:
-        table_name = 'conversations'
-
 class Message(BaseModel):
     id = CharField(primary_key=True, default=lambda: str(uuid.uuid4()))
     contact = ForeignKeyField(Contact, backref='messages', on_delete='CASCADE')
@@ -80,7 +66,6 @@ class Message(BaseModel):
     model = TextField(null=True)
     healing_score = IntegerField(null=True, constraints=[Check('healing_score >= 0 AND healing_score <= 10')])
     user = ForeignKeyField(User, backref='messages', on_delete='CASCADE')
-    conversation = ForeignKeyField(Conversation, backref='messages', on_delete='CASCADE', null=True)
     created_at = DateTimeField(default=datetime.now)
     
     class Meta:
@@ -95,7 +80,6 @@ class Interpretation(BaseModel):
     interpretation_score = IntegerField(null=True, constraints=[Check('interpretation_score >= 0 AND interpretation_score <= 10')])
     model = TextField()
     user = ForeignKeyField(User, backref='interpretations', on_delete='CASCADE')
-    conversation = ForeignKeyField(Conversation, backref='interpretations', on_delete='CASCADE', null=True)
     created_at = DateTimeField(default=datetime.now)
     
     class Meta:
@@ -112,7 +96,6 @@ class AIResponseCache(BaseModel):
     sentiment = CharField(choices=[(sent.value, sent.value) for sent in SentimentType], null=True)
     emotional_state = TextField(null=True)
     user = ForeignKeyField(User, backref='ai_cache', on_delete='CASCADE')
-    conversation = ForeignKeyField(Conversation, backref='ai_cache', on_delete='CASCADE', null=True)
     created_at = DateTimeField(default=datetime.now)
     expires_at = DateTimeField(default=lambda: datetime.now() + timedelta(days=7))
     
@@ -125,7 +108,6 @@ class Feedback(BaseModel):
     rating = IntegerField(constraints=[Check('rating >= 1 AND rating <= 5')])
     feedback_text = TextField(null=True)
     feature_context = TextField()
-    conversation = ForeignKeyField(Conversation, backref='feedback', on_delete='CASCADE', null=True)
     created_at = DateTimeField(default=datetime.now)
     
     class Meta:
@@ -141,4 +123,4 @@ class DemoUsage(BaseModel):
         table_name = 'demo_usage'
 
 # List of all models for database operations
-MODELS = [User, Contact, Conversation, Message, Interpretation, AIResponseCache, Feedback, DemoUsage]
+MODELS = [User, Contact, Message, Interpretation, AIResponseCache, Feedback, DemoUsage]

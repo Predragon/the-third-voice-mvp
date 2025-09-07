@@ -5,12 +5,11 @@ Modernized for FastAPI with proper async support and type safety
 """
 
 from datetime import datetime, timedelta
-from typing import List, Optional, Dict, Any, Generator
+from typing import List, Optional, Dict, Any
 import uuid
 import hashlib
 import asyncio
 from contextlib import asynccontextmanager
-from sqlalchemy.orm import Session
 
 # Import your new Pydantic models
 # Import Pydantic schemas
@@ -24,79 +23,20 @@ from .schemas import (
 
 # Import Peewee models and enums
 from .models import (
-    Contact, Message, AIResponseCache, Feedback, Conversation,
-    SentimentType, ContextType, MessageType, User,
-    database, MODELS
+    Contact, Message, AIResponseCache, Feedback,
+    SentimentType, ContextType, MessageType
+
 )
 
+# Import Peewee models for database operations (your existing ones)
+from .peewee_models import (
+    Contact as PeeweeContact,
+    Message as PeeweeMessage, 
+    AIResponseCache as PeeweeAIResponseCache,
+    Feedback as PeeweeFeedback,
+    get_db_context
+)
 from ..core.config import settings
-
-
-# Database initialization and connection functions
-def init_db() -> None:
-    """
-    Initialize the database by creating all tables.
-    This should be called when the application starts.
-    """
-    try:
-        # Connect to database
-        database.connect()
-        
-        # Create all tables
-        database.create_tables(MODELS, safe=True)
-        
-        print(f"✅ Database initialized successfully at {settings.DATABASE_PATH}")
-    except Exception as e:
-        print(f"❌ Error initializing database: {str(e)}")
-        raise
-    finally:
-        if not database.is_closed():
-            database.close()
-
-
-def get_db() -> Generator[None, None, None]:
-    """
-    Database dependency that provides a database connection.
-    This is used as a FastAPI dependency.
-    """
-    if database.is_closed():
-        database.connect()
-    try:
-        yield
-    finally:
-        if not database.is_closed():
-            database.close()
-
-
-@asynccontextmanager
-async def get_db_context():
-    """Async context manager for database connections"""
-    if database.is_closed():
-        database.connect()
-    try:
-        yield
-    finally:
-        if not database.is_closed():
-            database.close()
-
-
-def check_db_connection() -> bool:
-    """
-    Check if the database connection is working.
-    Returns True if connection is successful, False otherwise.
-    """
-    try:
-        if database.is_closed():
-            database.connect()
-        # Try a simple query
-        Contact.select().limit(1).execute()
-        return True
-    except Exception as e:
-        print(f"Database connection check failed: {str(e)}")
-        return False
-    finally:
-        if not database.is_closed():
-            database.close()
 
 
 class DatabaseManager:
@@ -131,15 +71,15 @@ class DatabaseManager:
             return self._get_demo_user_data(user_id, 'contacts')
         
         try:
-            async with get_db_context():
-                peewee_contacts = list(Contact.select().where(Contact.user == user_id))
+            with get_db_context():
+                peewee_contacts = list(PeeweeContact.select().where(PeeweeContact.user_id == user_id))
                 # Convert Peewee models to Pydantic models
                 contacts = [
                     ContactResponse(
                         id=contact.id,
                         name=contact.name,
                         context=ContextType(contact.context),
-                        user_id=contact.user.id,
+                        user_id=contact.user_id,
                         created_at=contact.created_at,
                         updated_at=contact.updated_at
                     )
@@ -156,12 +96,11 @@ class DatabaseManager:
             return await self._create_demo_contact(contact_data, user_id)
         
         try:
-            async with get_db_context():
-                user = User.get_by_id(user_id)
-                peewee_contact = Contact.create(
+            with get_db_context():
+                peewee_contact = PeeweeContact.create(
                     name=contact_data.name,
                     context=contact_data.context.value,
-                    user=user
+                    user_id=user_id
                 )
                 
                 # Convert to Pydantic response model
@@ -169,7 +108,7 @@ class DatabaseManager:
                     id=peewee_contact.id,
                     name=peewee_contact.name,
                     context=ContextType(peewee_contact.context),
-                    user_id=peewee_contact.user.id,
+                    user_id=peewee_contact.user_id,
                     created_at=peewee_contact.created_at,
                     updated_at=peewee_contact.updated_at
                 )
@@ -202,26 +141,23 @@ class DatabaseManager:
             return await self._save_demo_message(message_data, user_id, ai_response)
         
         try:
-            async with get_db_context():
-                user = User.get_by_id(user_id)
-                contact = Contact.get_by_id(message_data.contact_id)
-                
-                peewee_message = Message.create(
-                    contact=contact,
+            with get_db_context():
+                peewee_message = PeeweeMessage.create(
+                    contact_id=message_data.contact_id,
                     contact_name=message_data.contact_name,
                     type=message_data.type.value,
                     original=message_data.original,
                     result=ai_response.transformed_message,
-                    sentiment=ai_response.sentiment.value if ai_response.sentiment else None,
+                    sentiment=ai_response.sentiment.value,
                     emotional_state=ai_response.emotional_state,
                     model=ai_response.model_used or settings.AI_MODEL,
                     healing_score=ai_response.healing_score,
-                    user=user
+                    user_id=user_id
                 )
                 
                 return MessageResponse(
                     id=peewee_message.id,
-                    contact_id=peewee_message.contact.id,
+                    contact_id=peewee_message.contact_id,
                     contact_name=peewee_message.contact_name,
                     type=MessageType(peewee_message.type),
                     original=peewee_message.original,
@@ -230,7 +166,7 @@ class DatabaseManager:
                     emotional_state=peewee_message.emotional_state,
                     model=peewee_message.model,
                     healing_score=peewee_message.healing_score,
-                    user_id=peewee_message.user.id,
+                    user_id=peewee_message.user_id,
                     created_at=peewee_message.created_at
                 )
         except Exception as e:
@@ -269,21 +205,21 @@ class DatabaseManager:
             return sorted(contact_messages, key=lambda x: x.created_at, reverse=True)[:limit]
         
         try:
-            async with get_db_context():
+            with get_db_context():
                 peewee_messages = list(
-                    Message.select()
+                    PeeweeMessage.select()
                     .where(
-                        (Message.contact == contact_id) & 
-                        (Message.user == user_id)
+                        (PeeweeMessage.contact_id == contact_id) & 
+                        (PeeweeMessage.user_id == user_id)
                     )
-                    .order_by(Message.created_at.desc())
+                    .order_by(PeeweeMessage.created_at.desc())
                     .limit(limit)
                 )
                 
                 messages = [
                     MessageResponse(
                         id=msg.id,
-                        contact_id=msg.contact.id,
+                        contact_id=msg.contact_id,
                         contact_name=msg.contact_name,
                         type=MessageType(msg.type),
                         original=msg.original,
@@ -292,7 +228,7 @@ class DatabaseManager:
                         emotional_state=msg.emotional_state,
                         model=msg.model,
                         healing_score=msg.healing_score,
-                        user_id=msg.user.id,
+                        user_id=msg.user_id,
                         created_at=msg.created_at
                     )
                     for msg in peewee_messages
@@ -308,10 +244,9 @@ class DatabaseManager:
             return await self._save_demo_feedback(feedback_data, user_id)
         
         try:
-            async with get_db_context():
-                user = User.get_by_id(user_id)
-                peewee_feedback = Feedback.create(
-                    user=user,
+            with get_db_context():
+                peewee_feedback = PeeweeFeedback.create(
+                    user_id=user_id,
                     rating=feedback_data.rating,
                     feedback_text=feedback_data.feedback_text,
                     feature_context=feedback_data.feature_context
@@ -322,7 +257,7 @@ class DatabaseManager:
                     rating=peewee_feedback.rating,
                     feedback_text=peewee_feedback.feedback_text,
                     feature_context=peewee_feedback.feature_context,
-                    user_id=peewee_feedback.user.id,
+                    user_id=peewee_feedback.user_id,
                     created_at=peewee_feedback.created_at
                 )
         except Exception as e:
@@ -356,14 +291,14 @@ class DatabaseManager:
             return await self._check_demo_cache(contact_id, message_hash, user_id)
         
         try:
-            async with get_db_context():
+            with get_db_context():
                 cache_entry = (
-                    AIResponseCache.select()
+                    PeeweeAIResponseCache.select()
                     .where(
-                        (AIResponseCache.contact == contact_id) &
-                        (AIResponseCache.message_hash == message_hash) &
-                        (AIResponseCache.user == user_id) &
-                        (AIResponseCache.expires_at > datetime.now())
+                        (PeeweeAIResponseCache.contact_id == contact_id) &
+                        (PeeweeAIResponseCache.message_hash == message_hash) &
+                        (PeeweeAIResponseCache.user_id == user_id) &
+                        (PeeweeAIResponseCache.expires_at > datetime.now())
                     )
                     .first()
                 )
@@ -416,21 +351,19 @@ class DatabaseManager:
             return await self._save_to_demo_cache(contact_id, message_hash, context, user_id, ai_response)
         
         try:
-            async with get_db_context():
+            with get_db_context():
                 expires_at = datetime.now() + timedelta(days=getattr(settings, 'CACHE_EXPIRY_DAYS', 7))
-                user = User.get_by_id(user_id)
-                contact = Contact.get_by_id(contact_id)
                 
-                AIResponseCache.create(
-                    contact=contact,
+                PeeweeAIResponseCache.create(
+                    contact_id=contact_id,
                     message_hash=message_hash,
                     context=context,
                     response=ai_response.transformed_message,
                     healing_score=ai_response.healing_score,
                     model=ai_response.model_used or settings.AI_MODEL,
-                    sentiment=ai_response.sentiment.value if ai_response.sentiment else None,
+                    sentiment=ai_response.sentiment.value,
                     emotional_state=ai_response.emotional_state,
-                    user=user,
+                    user_id=user_id,
                     expires_at=expires_at
                 )
                 return True
@@ -453,7 +386,7 @@ class DatabaseManager:
             "response": ai_response.transformed_message,
             "healing_score": ai_response.healing_score,
             "model": ai_response.model_used or settings.AI_MODEL,
-            "sentiment": ai_response.sentiment.value if ai_response.sentiment else None,
+            "sentiment": ai_response.sentiment.value,
             "emotional_state": ai_response.emotional_state,
             "expires_at": expires_at
         }
@@ -468,29 +401,41 @@ class DatabaseManager:
             return await self._update_demo_contact(contact_id, contact_update, user_id)
         
         try:
-            async with get_db_context():
-                contact = Contact.get(
-                    (Contact.id == contact_id) & 
-                    (Contact.user == user_id)
-                )
-                
-                # Update fields if provided
+            with get_db_context():
+                # Build update data from non-None fields
+                update_data = {}
                 if contact_update.name is not None:
-                    contact.name = contact_update.name
+                    update_data['name'] = contact_update.name
                 if contact_update.context is not None:
-                    contact.context = contact_update.context.value
+                    update_data['context'] = contact_update.context.value
                 
-                contact.updated_at = datetime.now()
-                contact.save()
-                
-                return ContactResponse(
-                    id=contact.id,
-                    name=contact.name,
-                    context=ContextType(contact.context),
-                    user_id=contact.user.id,
-                    created_at=contact.created_at,
-                    updated_at=contact.updated_at
-                )
+                if update_data:
+                    update_data['updated_at'] = datetime.now()
+                    
+                    updated_count = (
+                        PeeweeContact.update(**update_data)
+                        .where(
+                            (PeeweeContact.id == contact_id) & 
+                            (PeeweeContact.user_id == user_id)
+                        )
+                        .execute()
+                    )
+                    
+                    if updated_count > 0:
+                        # Fetch and return updated contact
+                        updated_contact = PeeweeContact.get(
+                            (PeeweeContact.id == contact_id) & 
+                            (PeeweeContact.user_id == user_id)
+                        )
+                        return ContactResponse(
+                            id=updated_contact.id,
+                            name=updated_contact.name,
+                            context=ContextType(updated_contact.context),
+                            user_id=updated_contact.user_id,
+                            created_at=updated_contact.created_at,
+                            updated_at=updated_contact.updated_at
+                        )
+                return None
         except Exception as e:
             print(f"Error updating contact: {str(e)}")
             return None
@@ -517,23 +462,23 @@ class DatabaseManager:
             return await self._delete_demo_contact(contact_id, user_id)
         
         try:
-            async with get_db_context():
+            with get_db_context():
                 # Delete in proper order due to foreign key constraints
-                Message.delete().where(
-                    (Message.contact == contact_id) & 
-                    (Message.user == user_id)
+                PeeweeMessage.delete().where(
+                    (PeeweeMessage.contact_id == contact_id) & 
+                    (PeeweeMessage.user_id == user_id)
                 ).execute()
                 
-                AIResponseCache.delete().where(
-                    (AIResponseCache.contact == contact_id) & 
-                    (AIResponseCache.user == user_id)
+                PeeweeAIResponseCache.delete().where(
+                    (PeeweeAIResponseCache.contact_id == contact_id) & 
+                    (PeeweeAIResponseCache.user_id == user_id)
                 ).execute()
                 
                 deleted_count = (
-                    Contact.delete()
+                    PeeweeContact.delete()
                     .where(
-                        (Contact.id == contact_id) & 
-                        (Contact.user == user_id)
+                        (PeeweeContact.id == contact_id) & 
+                        (PeeweeContact.user_id == user_id)
                     )
                     .execute()
                 )
@@ -571,12 +516,12 @@ class DatabaseManager:
             return None
         
         try:
-            async with get_db_context():
+            with get_db_context():
                 peewee_contact = (
-                    Contact.select()
+                    PeeweeContact.select()
                     .where(
-                        (Contact.id == contact_id) & 
-                        (Contact.user == user_id)
+                        (PeeweeContact.id == contact_id) & 
+                        (PeeweeContact.user_id == user_id)
                     )
                     .first()
                 )
@@ -586,7 +531,7 @@ class DatabaseManager:
                         id=peewee_contact.id,
                         name=peewee_contact.name,
                         context=ContextType(peewee_contact.context),
-                        user_id=peewee_contact.user.id,
+                        user_id=peewee_contact.user_id,
                         created_at=peewee_contact.created_at,
                         updated_at=peewee_contact.updated_at
                     )
@@ -601,25 +546,25 @@ class DatabaseManager:
             return await self._get_demo_message_stats(user_id, days)
         
         try:
-            async with get_db_context():
+            with get_db_context():
                 since_date = datetime.now() - timedelta(days=days)
                 
                 total_messages = (
-                    Message.select()
+                    PeeweeMessage.select()
                     .where(
-                        (Message.user == user_id) &
-                        (Message.created_at >= since_date)
+                        (PeeweeMessage.user_id == user_id) &
+                        (PeeweeMessage.created_at >= since_date)
                     )
                     .count()
                 )
                 
                 # Calculate average healing score
                 messages_with_scores = list(
-                    Message.select()
+                    PeeweeMessage.select()
                     .where(
-                        (Message.user == user_id) &
-                        (Message.created_at >= since_date) &
-                        (Message.healing_score.is_null(False))
+                        (PeeweeMessage.user_id == user_id) &
+                        (PeeweeMessage.created_at >= since_date) &
+                        (PeeweeMessage.healing_score.is_null(False))
                     )
                 )
                 
@@ -670,13 +615,13 @@ class DatabaseManager:
             return await self._clean_demo_expired_cache(user_id)
         
         try:
-            async with get_db_context():
-                query = AIResponseCache.delete().where(
-                    AIResponseCache.expires_at < datetime.now()
+            with get_db_context():
+                query = PeeweeAIResponseCache.delete().where(
+                    PeeweeAIResponseCache.expires_at < datetime.now()
                 )
                 
                 if user_id:
-                    query = query.where(AIResponseCache.user == user_id)
+                    query = query.where(PeeweeAIResponseCache.user_id == user_id)
                 
                 deleted_count = query.execute()
                 print(f"🧹 Cleaned {deleted_count} expired cache entries")
@@ -713,9 +658,9 @@ class DatabaseManager:
     async def health_check(self) -> Dict[str, Any]:
         """Check database health"""
         try:
-            async with get_db_context():
+            with get_db_context():
                 # Simple query to test database connectivity
-                Contact.select().limit(1).execute()
+                PeeweeContact.select().limit(1).execute()
                 return {
                     "database": True,
                     "demo_users": len(self._demo_contacts),
