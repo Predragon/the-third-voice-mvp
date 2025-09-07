@@ -6,11 +6,16 @@ on:
   pull_request:
     branches: [ develop ]
 
+# ADD THIS ENV SECTION  ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+env:
+  SECRET_KEY: ${{ secrets.SECRET_KEY }}
+  OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+
 jobs:
-  # Backend Testing - simplified for initial setup
+  # Backend Testing
   test-backend:
     runs-on: ubuntu-latest
-    continue-on-error: true  # Allows partial success while setting up
+    # REMOVE continue-on-error: true  ← We want real tests now!
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -26,26 +31,10 @@ jobs:
         pip install -r requirements.txt
         pip install pytest
 
-    - name: Run basic backend checks
+    - name: Run backend tests
       run: |
         cd backend
-        echo "✅ Python version: $(python --version)"
-        echo "✅ Pip version: $(pip --version)"
-        echo "✅ Testing basic imports..."
-        python -c "import sys; print('Python path:', sys.path)"
-        python -c "print('Backend setup successful!')"
-        
-        # Run any existing tests without failing the build
-        if [ -f "tests/test_example.py" ]; then
-          echo "Running existing tests..."
-          python -m pytest tests/ -v
-        else
-          echo "No test files found yet - creating basic test..."
-          mkdir -p tests
-          echo "def test_basic():" > tests/test_basic.py
-          echo "    assert True" >> tests/test_basic.py
-          python -m pytest tests/ -v
-        fi
+        python -m pytest tests/ -v
 
   # Frontend Testing
   test-frontend:
@@ -84,10 +73,10 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Scan for vulnerabilities
-      if: github.event_name == 'pull_request'  # ← FIXED: Only run on PRs
+      if: github.event_name == 'pull_request'
       uses: actions/dependency-review-action@v3
 
-  # Deployment (only runs when all tests pass)
+  # Deployment
   deploy:
     needs: [test-backend, test-frontend, security-scan]
     runs-on: ubuntu-latest
@@ -100,7 +89,4 @@ jobs:
     - name: Deployment preparation
       run: |
         echo "🎉 All tests passed! Ready for deployment."
-        echo "Branch: $GITHUB_REF"
-        echo "Add your deployment commands here:"
-        echo "# ./scripts/deploy.sh"
-        echo "# npm run deploy"
+        echo "Add your deployment commands here"
