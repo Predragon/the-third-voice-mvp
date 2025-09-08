@@ -5,7 +5,7 @@ Core package containing configuration, exceptions, and utilities
 
 from .config import settings, get_settings
 from .exceptions import AppException, ValidationException, AuthenticationException
-from .logging import setup_logging, get_logger
+from .custom_logging import setup_logging, get_logger
 
 __all__ = [
     "settings",

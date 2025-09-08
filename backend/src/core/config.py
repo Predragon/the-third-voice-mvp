@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     # AI Configuration
     OPENROUTER_API_KEY: Optional[str] = Field(None, description="OpenRouter API key")
     OPENROUTER_BASE_URL: str = Field("https://openrouter.ai/api/v1", description="OpenRouter API base URL")
-    AI_MODEL: str = Field("deepseek/deepseek-chat-v3-0324:free", description="Default AI model")
+    AI_MODEL: str = Field("meta-llama/llama-3.1-8b-instruct:free", description="Default AI model")
     MAX_TOKENS: int = Field(1000, description="Maximum tokens for AI responses")
     TEMPERATURE: float = Field(0.7, description="AI model temperature")
     
@@ -90,9 +90,9 @@ class Settings(BaseSettings):
     MAX_BACKGROUND_TASKS: int = Field(10, description="Maximum concurrent background tasks")
     
     class Config:
-        env_file = ".env"
+        env_file = "/home/thirdvoice/the-third-voice-mvp/backend/.env"
         env_file_encoding = "utf-8"
-        case_sensitive = True
+        case_sensitive = False
     
     @validator('ENVIRONMENT')
     def validate_environment(cls, v):
@@ -193,8 +193,9 @@ class TestSettings(Settings):
     LOG_LEVEL: str = "DEBUG"
     
     class Config:
-        env_file = ".env.test"
+        env_file = "/home/thirdvoice/the-third-voice-mvp/backend/.env.test"
         env_file_encoding = "utf-8"
+        case_sensitive = False
 
 
 # Create settings instance

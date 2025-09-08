@@ -27,7 +27,7 @@ from src.ai.ai_engine import ai_engine
 from src.data.peewee_models import create_tables
 from src.api.routes import auth, contacts, messages, feedback, health
 from src.core.exceptions import AppException, ValidationException
-from src.core.logging import setup_logging
+from src.core.custom_logging import setup_logging
 from src.data.schemas import HealthCheck, ErrorResponse
 
 # Setup logging

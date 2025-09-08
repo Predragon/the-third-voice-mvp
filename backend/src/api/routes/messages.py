@@ -9,6 +9,7 @@ from slowapi.util import get_remote_address
 from typing import List, Dict, Any, Optional
 import logging
 import json
+import httpx
 
 from ...auth.auth_manager import get_current_user
 from ...data.schemas import (
@@ -368,55 +369,64 @@ async def quick_transform(
         # Validate message
         validate_message_content(message_data.message)
 
-        # Process with AI (no caching for quick transforms)
-        raw_response = await ai_engine.process_message(
-            message=message_data.message,
-            contact_context=message_data.contact_context,
-            message_type=MessageType.TRANSFORM.value,
-            contact_id="quick-transform",
-            user_id=current_user.id
-        )
-
-        # Parse AI response (handle markdown-wrapped JSON)
-        if isinstance(raw_response, str):
-            if raw_response.startswith('```json'):
-                raw_response = raw_response.strip('```json\n').strip('```')
+        # Direct OpenRouter API call (bypass ai_engine complexity)
+        async with httpx.AsyncClient() as client:
             try:
-                response_data = json.loads(raw_response)
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse AI response: {str(e)}, raw_response: {raw_response}")
+                response = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": settings.AI_MODEL,
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": f"You are an AI communication coach. Transform the user's message to be more constructive and healing in the context of their {message_data.contact_context} relationship. Respond with only the transformed message text, no JSON or extra formatting."
+                            },
+                            {
+                                "role": "user", 
+                                "content": message_data.message
+                            }
+                        ],
+                        "max_tokens": 150,
+                        "temperature": 0.7
+                    }
+                )
+                response.raise_for_status()
+                
+                # Extract the transformed message
+                response_data = response.json()
+                transformed_message = response_data["choices"][0]["message"]["content"].strip()
+                
+                result = {
+                    "transformed_message": transformed_message,
+                    "original_message": message_data.message,
+                    "contact_name": message_data.contact_name,
+                    "context": message_data.contact_context,
+                    "model_used": settings.AI_MODEL
+                }
+
+                logger.info(f"✅ Quick transform completed for {current_user.email}")
+                return result
+
+            except httpx.HTTPStatusError as e:
+                logger.error(f"OpenRouter API error: {e.response.status_code} - {e.response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Could not transform message"
+                    detail=f"AI service error: {e.response.status_code}"
                 )
-        else:
-            response_data = raw_response
-
-        # Convert to AIResponse object
-        try:
-            ai_response = AIResponse(**response_data)
-        except Exception as e:
-            logger.error(f"Failed to create AIResponse object: {str(e)}, response_data: {response_data}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Could not transform message"
-            )
-
-        result = {
-            "original": message_data.message,
-            "transformed_message": ai_response.transformed_message,
-            "healing_score": ai_response.healing_score or 8,
-            "sentiment": ai_response.sentiment.value if ai_response.sentiment else None,
-            "emotional_state": ai_response.emotional_state,
-            "explanation": ai_response.explanation,
-            "model_used": ai_response.model_used,
-            "context": message_data.contact_context
-        }
-
-        logger.info(f"✅ Quick transform completed for {current_user.email}")
-        return result
+            except httpx.RequestError as e:
+                logger.error(f"Request error: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Could not connect to AI service"
+                )
 
     except ValidationException:
+        raise
+    except HTTPException:
         raise
     except Exception as e:
         logger.error(f"❌ Error in quick transform: {str(e)}")
@@ -441,58 +451,64 @@ async def quick_interpret(
         # Validate message
         validate_message_content(message_data.message)
 
-        # Process with AI
-        raw_response = await ai_engine.process_message(
-            message=message_data.message,
-            contact_context=message_data.contact_context,
-            message_type=MessageType.INTERPRET.value,
-            contact_id="quick-interpret",
-            user_id=current_user.id
-        )
-
-        # Parse AI response (handle markdown-wrapped JSON)
-        if isinstance(raw_response, str):
-            if raw_response.startswith('```json'):
-                raw_response = raw_response.strip('```json\n').strip('```')
+        # Direct OpenRouter API call (bypass ai_engine complexity)
+        async with httpx.AsyncClient() as client:
             try:
-                response_data = json.loads(raw_response)
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse AI response: {str(e)}, raw_response: {raw_response}")
+                response = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": settings.AI_MODEL,
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": f"You are an AI communication coach. Help interpret what this message really means and suggest how to respond constructively in the context of their {message_data.contact_context} relationship. Provide a brief interpretation and suggested response."
+                            },
+                            {
+                                "role": "user", 
+                                "content": f"What does this message really mean and how should I respond? Message: '{message_data.message}'"
+                            }
+                        ],
+                        "max_tokens": 200,
+                        "temperature": 0.7
+                    }
+                )
+                response.raise_for_status()
+                
+                # Extract the interpretation
+                response_data = response.json()
+                interpretation = response_data["choices"][0]["message"]["content"].strip()
+                
+                result = {
+                    "original": message_data.message,
+                    "interpretation": interpretation,
+                    "contact_name": message_data.contact_name,
+                    "context": message_data.contact_context,
+                    "model_used": settings.AI_MODEL
+                }
+
+                logger.info(f"✅ Quick interpret completed for {current_user.email}")
+                return result
+
+            except httpx.HTTPStatusError as e:
+                logger.error(f"OpenRouter API error: {e.response.status_code} - {e.response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Could not interpret message"
+                    detail=f"AI service error: {e.response.status_code}"
                 )
-        else:
-            response_data = raw_response
-
-        # Convert to AIResponse object
-        try:
-            ai_response = AIResponse(**response_data)
-        except Exception as e:
-            logger.error(f"Failed to create AIResponse object: {str(e)}, response_data: {response_data}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Could not interpret message"
-            )
-
-        result = {
-            "original": message_data.message,
-            "suggested_response": ai_response.transformed_message,
-            "interpretation": ai_response.explanation,
-            "subtext": ai_response.subtext,
-            "emotional_needs": ai_response.needs,
-            "warnings": ai_response.warnings,
-            "healing_score": ai_response.healing_score or 8,
-            "sentiment": ai_response.sentiment.value if ai_response.sentiment else None,
-            "emotional_state": ai_response.emotional_state,
-            "model_used": ai_response.model_used,
-            "context": message_data.contact_context
-        }
-
-        logger.info(f"✅ Quick interpret completed for {current_user.email}")
-        return result
+            except httpx.RequestError as e:
+                logger.error(f"Request error: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Could not connect to AI service"
+                )
 
     except ValidationException:
+        raise
+    except HTTPException:
         raise
     except Exception as e:
         logger.error(f"❌ Error in quick interpret: {str(e)}")

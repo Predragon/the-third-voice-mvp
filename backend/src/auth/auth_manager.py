@@ -88,7 +88,7 @@ class AuthManager:
                 detail="Token has expired",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        except jwt.JWTError:
+        except jwt.PyJWTError:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",
@@ -157,7 +157,7 @@ class AuthManager:
     async def _create_initial_demo_contact(self):
         """Create pre-filled demo contact for instant use"""
         try:
-            from ..data.models import ContactCreate, ContextType
+            from ..data.schemas import ContactCreate, ContextType
             
             demo_contact_data = ContactCreate(
                 name="Sarah",
