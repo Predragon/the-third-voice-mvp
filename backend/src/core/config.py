@@ -38,11 +38,12 @@ class Settings(BaseSettings):
         [
             "http://localhost:3000",
             "http://127.0.0.1:3000",
+            "http://100.71.78.118:3000",
         ],
         description="Allowed CORS origins"
     )
     ALLOWED_HOSTS: List[str] = Field(
-        ["localhost", "127.0.0.1"],
+        ["localhost", "127.0.0.1", "100.71.78.118"],
         description="Allowed hosts for production"
     )
 
@@ -138,6 +139,18 @@ class Settings(BaseSettings):
         db_path.parent.mkdir(parents=True, exist_ok=True)
         return str(db_path.absolute())
 
+    @validator('ALLOWED_ORIGINS', pre=True)
+    def parse_allowed_origins(cls, v):
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(',')]
+        return v
+
+    @validator('ALLOWED_HOSTS', pre=True)
+    def parse_allowed_hosts(cls, v):
+        if isinstance(v, str):
+            return [host.strip() for host in v.split(',')]
+        return v
+
     @validator('OPENROUTER_API_KEY')
     def warn_missing_api_key(cls, v, values):
         if not v and values.get("ENVIRONMENT") != "testing":
@@ -145,18 +158,6 @@ class Settings(BaseSettings):
                 "OPENROUTER_API_KEY not set! AI features may fail. "
                 "Set OPENROUTER_API_KEY in .env. Check account credits to avoid 402 errors."
             )
-        return v
-
-    @validator('ALLOWED_ORIGINS', pre=True)
-    def parse_allowed_origins(cls, v):
-        if isinstance(v, str):
-            return [o.strip() for o in v.split(',')]
-        return v
-
-    @validator('ALLOWED_HOSTS', pre=True)
-    def parse_allowed_hosts(cls, v):
-        if isinstance(v, str):
-            return [h.strip() for h in v.split(',')]
         return v
 
     # ------------------------
@@ -195,17 +196,34 @@ class Settings(BaseSettings):
 
 
 # ------------------------
-# Load environment file dynamically
+# Test settings
+# ------------------------
+class TestSettings(Settings):
+    ENVIRONMENT: str = "testing"
+    DATABASE_PATH: str = "test_thirdvoice.db"
+    SECRET_KEY: str = secrets.token_hex(32)
+    LOG_LEVEL: str = "DEBUG"
+
+
+# ------------------------
+# Dynamic env file selection
 # ------------------------
 env_name = os.getenv("ENVIRONMENT", "development")
 env_file_map = {
     "development": ".env.development",
     "production": ".env.production",
-    "testing": ".env.testing"
+    "testing": ".env.testing",
 }
-env_file_path = Path(__file__).parent.parent / env_file_map.get(env_name, ".env.development")
+env_file_path = Path(__file__).parent.parent.parent / env_file_map.get(env_name, ".env.development")
 
-settings = Settings(_env_file=str(env_file_path))
+
+def get_settings() -> Settings:
+    if env_name == "testing":
+        return TestSettings(_env_file=str(env_file_path))
+    return Settings(_env_file=str(env_file_path))
+
+
+settings = get_settings()
 
 
 # ------------------------
@@ -243,6 +261,81 @@ def setup_logging_level():
 
 
 # ------------------------
+# Validation
+# ------------------------
+def validate_required_settings():
+    required_for_production = [
+        ("SECRET_KEY", "JWT secret key"),
+        ("OPENROUTER_API_KEY", "OpenRouter API key"),
+    ]
+    if settings.is_production:
+        missing = []
+        for key, description in required_for_production:
+            value = getattr(settings, key, None)
+            if not value:
+                missing.append(f"{key} ({description})")
+        if missing:
+            raise ValueError(f"Missing required production settings: {', '.join(missing)}")
+
+
+# ------------------------
+# Database config
+# ------------------------
+def get_database_config():
+    return {
+        "database": settings.DATABASE_PATH,
+        "pragmas": {
+            "journal_mode": "wal",
+            "cache_size": -64 * 1000,
+            "foreign_keys": 1,
+            "ignore_check_constraints": 0,
+            "synchronous": 0,
+        }
+    }
+
+
+# ------------------------
+# Uvicorn config
+# ------------------------
+ENVIRONMENT_CONFIGS = {
+    "development": {
+        "reload": True,
+        "log_level": "debug",
+    },
+    "production": {
+        "reload": False,
+        "log_level": "info",
+        "workers": 1,
+    },
+    "testing": {
+        "reload": False,
+        "log_level": "debug",
+    }
+}
+
+
+def get_uvicorn_config() -> dict:
+    base_config = {
+        "app": "main:app",
+        "host": settings.HOST,
+        "port": settings.PORT,
+        "log_level": settings.LOG_LEVEL.lower(),
+    }
+    env_config = ENVIRONMENT_CONFIGS.get(settings.ENVIRONMENT, {})
+    base_config.update(env_config)
+    return base_config
+
+
+# ------------------------
 # Exports
 # ------------------------
-__all__ = ["settings", "Settings", "setup_logging_level"]
+__all__ = [
+    "settings",
+    "Settings",
+    "TestSettings",
+    "get_settings",
+    "validate_required_settings",
+    "get_database_config",
+    "get_uvicorn_config",
+    "setup_logging_level"
+]
