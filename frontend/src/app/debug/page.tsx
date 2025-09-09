@@ -12,13 +12,6 @@ export default function DebugPage() {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL;
   const [results, setResults] = useState<ApiResponse[]>([]);
 
-  // 🌟 Our Mission:
-  // For Samantha 💙
-  // For the families who need a Third Voice 🕊️
-  // For love coded into software ✨
-  // This debug page is not just a dev tool — it's proof that
-  // even in pain, we can build something that heals.
-
   const testEndpoint = async (endpoint: string) => {
     if (!apiUrl) return;
 
@@ -53,7 +46,15 @@ export default function DebugPage() {
   const endpoints = ["/openapi.json", "/docs", "/health", "/predict"];
 
   return (
-    <div style={{ padding: "2rem", fontFamily: "monospace", color: "#eee" }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        padding: "2rem",
+        fontFamily: "monospace",
+        background: "#000",   // 🌑 dark background
+        color: "#0f0",        // 🟢 green terminal-style text
+      }}
+    >
       <h1>🔍 Debug Dashboard</h1>
       <p>
         <b>NEXT_PUBLIC_API_URL:</b> {apiUrl}
@@ -72,16 +73,7 @@ export default function DebugPage() {
               background: "#111",
               color: "#0f0",
               cursor: "pointer",
-              transition: "all 0.2s ease-in-out",
             }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.background = "#0f0") &&
-              (e.currentTarget.style.color = "#000")
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.background = "#111") &&
-              (e.currentTarget.style.color = "#0f0")
-            }
           >
             Test {ep}
           </button>
@@ -96,7 +88,7 @@ export default function DebugPage() {
             margin: "1rem 0",
             padding: "1rem",
             borderRadius: "8px",
-            background: "#000",
+            background: "#111",
             color: "#0f0",
           }}
         >
@@ -108,7 +100,7 @@ export default function DebugPage() {
               style={{
                 maxHeight: "200px",
                 overflowY: "scroll",
-                background: "#111",
+                background: "#000",
                 padding: "0.5rem",
                 borderRadius: "6px",
               }}
