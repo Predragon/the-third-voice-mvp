@@ -5,12 +5,13 @@ Environment-based settings with validation
 
 import os
 import secrets
-from typing import List, Optional, Union
+from pathlib import Path
+from typing import List, Optional
 from pydantic_settings import BaseSettings
 from pydantic import Field, validator
-from pathlib import Path
 import logging
 from logging.handlers import RotatingFileHandler
+
 
 class Settings(BaseSettings):
     """Application settings with environment variable support"""
@@ -24,7 +25,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = Field("INFO", description="Logging level")
 
     # Security
-    SECRET_KEY: str = Field(..., description="Secret key for JWT")  # Require SECRET_KEY
+    SECRET_KEY: str = Field(..., description="Secret key for JWT")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(30, description="JWT access token expiry in minutes")
     DEMO_TOKEN_EXPIRE_HOURS: int = Field(24, description="Demo user token expiry in hours")
 
@@ -49,6 +50,7 @@ class Settings(BaseSettings):
     # AI Configuration
     OPENROUTER_API_KEY: Optional[str] = Field(None, description="OpenRouter API key")
     OPENROUTER_BASE_URL: str = Field("https://openrouter.ai/api/v1", description="OpenRouter API base URL")
+    AI_MODEL: str = Field("meta-llama/llama-3.1-8b-instruct:free", description="Default AI model")
     MAX_TOKENS: int = Field(1000, description="Maximum tokens for AI responses")
     TEMPERATURE: float = Field(0.7, description="AI model temperature")
     API_TIMEOUT: float = Field(30.0, description="Timeout for OpenRouter API calls in seconds")
@@ -64,14 +66,14 @@ class Settings(BaseSettings):
         description="Allowed file extensions"
     )
 
-    # Email (if you plan to add email features)
+    # Email
     SMTP_HOST: Optional[str] = Field(None, description="SMTP server host")
     SMTP_PORT: int = Field(587, description="SMTP server port")
     SMTP_USERNAME: Optional[str] = Field(None, description="SMTP username")
     SMTP_PASSWORD: Optional[str] = Field(None, description="SMTP password")
     SMTP_FROM_EMAIL: Optional[str] = Field(None, description="From email address")
 
-    # Redis (optional - for advanced caching)
+    # Redis
     REDIS_URL: Optional[str] = Field(None, description="Redis URL for caching")
     REDIS_HOST: str = Field("localhost", description="Redis host")
     REDIS_PORT: int = Field(6379, description="Redis port")
@@ -82,7 +84,7 @@ class Settings(BaseSettings):
     ENABLE_METRICS: bool = Field(False, description="Enable application metrics")
     SENTRY_DSN: Optional[str] = Field(None, description="Sentry DSN for error tracking")
 
-    # Demo Mode Settings
+    # Demo Mode
     DEMO_MAX_CONTACTS: int = Field(5, description="Max contacts for demo users")
     DEMO_MAX_MESSAGES: int = Field(20, description="Max messages for demo users")
     DEMO_SESSION_HOURS: int = Field(24, description="Demo session duration in hours")
@@ -92,10 +94,13 @@ class Settings(BaseSettings):
     MAX_BACKGROUND_TASKS: int = Field(10, description="Maximum concurrent background tasks")
 
     class Config:
-        env_file = ".env"
+        env_file = "/home/thirdvoice/the-third-voice-mvp/backend/.env"
         env_file_encoding = "utf-8"
-        case_sensitive = True
+        case_sensitive = False
 
+    # ------------------------
+    # Validators
+    # ------------------------
     @validator('ENVIRONMENT')
     def validate_environment(cls, v):
         allowed = ['development', 'production', 'testing']
@@ -149,12 +154,14 @@ class Settings(BaseSettings):
         if not v and values.get("ENVIRONMENT") != "testing":
             import warnings
             warnings.warn(
-                "OPENROUTER_API_KEY not set! AI features may fail with 402 (Payment Required) or 404 (Not Found) errors. "
-                "Set OPENROUTER_API_KEY in .env file. Get it from https://openrouter.ai. "
-                "Check account credits to avoid 402 errors."
+                "OPENROUTER_API_KEY not set! AI features may fail. "
+                "Set OPENROUTER_API_KEY in .env. Check account credits to avoid 402 errors."
             )
         return v
 
+    # ------------------------
+    # Properties
+    # ------------------------
     @property
     def is_development(self) -> bool:
         return self.ENVIRONMENT == "development"
@@ -187,6 +194,9 @@ class Settings(BaseSettings):
         return self.RATE_LIMIT_DEMO_REQUESTS if is_demo else self.RATE_LIMIT_REQUESTS
 
 
+# ------------------------
+# Test settings
+# ------------------------
 class TestSettings(Settings):
     ENVIRONMENT: str = "testing"
     DATABASE_PATH: str = "test_thirdvoice.db"
@@ -194,10 +204,13 @@ class TestSettings(Settings):
     LOG_LEVEL: str = "DEBUG"
 
     class Config:
-        env_file = ".env.test"
+        env_file = "/home/thirdvoice/the-third-voice-mvp/backend/.env.test"
         env_file_encoding = "utf-8"
 
 
+# ------------------------
+# Instance
+# ------------------------
 def get_settings() -> Settings:
     env = os.getenv("ENVIRONMENT", "development")
     return TestSettings() if env == "testing" else Settings()
@@ -206,11 +219,11 @@ def get_settings() -> Settings:
 settings = get_settings()
 
 
+# ------------------------
+# Logging setup
+# ------------------------
 def setup_logging_level():
-    """Setup logging level based on settings with rotating file handler"""
     logger = logging.getLogger()
-
-    # Prevent duplicate handlers
     if logger.hasHandlers():
         logger.handlers.clear()
 
@@ -222,32 +235,32 @@ def setup_logging_level():
     console_handler.setFormatter(log_format)
     logger.addHandler(console_handler)
 
-    # Rotating file handler (max 5MB, keep 5 backups)
-    log_dir = Path("/data/data/com.termux/files/home/the-third-voice-mvp/backend/logs")
-    log_dir.mkdir(exist_ok=True)
+    # Rotating file handler
+    log_dir = Path("/home/thirdvoice/the-third-voice-mvp/backend/logs")
+    log_dir.mkdir(parents=True, exist_ok=True)
     file_handler = RotatingFileHandler(
         log_dir / "app.log",
-        maxBytes=5 * 1024 * 1024,  # 5MB
+        maxBytes=5 * 1024 * 1024,
         backupCount=5
     )
     file_handler.setFormatter(log_format)
     logger.addHandler(file_handler)
 
     logger.setLevel(log_level)
-    # Only log configuration once per process
     if not hasattr(setup_logging_level, "configured"):
         logger.info(f"Logging configured - Level: {settings.LOG_LEVEL} | Environment: {settings.ENVIRONMENT}")
         logger.info(f"Log files: {log_dir}")
-        logger.info("Note: Check disk space with 'df -h' to ensure logs don't fill storage.")
         setup_logging_level.configured = True
 
 
+# ------------------------
+# Validation
+# ------------------------
 def validate_required_settings():
     required_for_production = [
         ("SECRET_KEY", "JWT secret key"),
         ("OPENROUTER_API_KEY", "OpenRouter API key"),
     ]
-
     if settings.is_production:
         missing = []
         for key, description in required_for_production:
@@ -258,6 +271,9 @@ def validate_required_settings():
             raise ValueError(f"Missing required production settings: {', '.join(missing)}")
 
 
+# ------------------------
+# Database config
+# ------------------------
 def get_database_config():
     return {
         "database": settings.DATABASE_PATH,
@@ -271,6 +287,9 @@ def get_database_config():
     }
 
 
+# ------------------------
+# Uvicorn config
+# ------------------------
 ENVIRONMENT_CONFIGS = {
     "development": {
         "reload": True,
@@ -300,6 +319,9 @@ def get_uvicorn_config() -> dict:
     return base_config
 
 
+# ------------------------
+# Exports
+# ------------------------
 __all__ = [
     "settings",
     "Settings",
