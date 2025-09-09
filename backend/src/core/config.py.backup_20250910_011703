@@ -11,12 +11,8 @@ from pydantic_settings import BaseSettings
 from pydantic import Field, validator
 import logging
 from logging.handlers import RotatingFileHandler
-import warnings
 
 
-# ------------------------
-# Settings
-# ------------------------
 class Settings(BaseSettings):
     """Application settings with environment variable support"""
 
@@ -38,11 +34,12 @@ class Settings(BaseSettings):
         [
             "http://localhost:3000",
             "http://127.0.0.1:3000",
+            "http://100.71.78.118:3000",  # Pi IP address for frontend
         ],
         description="Allowed CORS origins"
     )
     ALLOWED_HOSTS: List[str] = Field(
-        ["localhost", "127.0.0.1"],
+        ["localhost", "127.0.0.1", "100.71.78.118"],
         description="Allowed hosts for production"
     )
 
@@ -97,6 +94,7 @@ class Settings(BaseSettings):
     MAX_BACKGROUND_TASKS: int = Field(10, description="Maximum concurrent background tasks")
 
     class Config:
+        env_file = "/home/thirdvoice/the-third-voice-mvp/backend/.env"
         env_file_encoding = "utf-8"
         case_sensitive = False
 
@@ -122,6 +120,7 @@ class Settings(BaseSettings):
         if not v or v == "your-secret-key-change-in-production":
             if values.get("ENVIRONMENT") == "production":
                 raise ValueError("SECRET_KEY must be set in production. Add it to .env file.")
+            import warnings
             generated_key = secrets.token_hex(32)
             warnings.warn(
                 f"Using generated SECRET_KEY for {values.get('ENVIRONMENT', 'unknown')} environment. "
@@ -138,25 +137,26 @@ class Settings(BaseSettings):
         db_path.parent.mkdir(parents=True, exist_ok=True)
         return str(db_path.absolute())
 
-    @validator('OPENROUTER_API_KEY')
-    def warn_missing_api_key(cls, v, values):
-        if not v and values.get("ENVIRONMENT") != "testing":
-            warnings.warn(
-                "OPENROUTER_API_KEY not set! AI features may fail. "
-                "Set OPENROUTER_API_KEY in .env. Check account credits to avoid 402 errors."
-            )
-        return v
-
     @validator('ALLOWED_ORIGINS', pre=True)
     def parse_allowed_origins(cls, v):
         if isinstance(v, str):
-            return [o.strip() for o in v.split(',')]
+            return [origin.strip() for origin in v.split(',')]
         return v
 
     @validator('ALLOWED_HOSTS', pre=True)
     def parse_allowed_hosts(cls, v):
         if isinstance(v, str):
-            return [h.strip() for h in v.split(',')]
+            return [host.strip() for host in v.split(',')]
+        return v
+
+    @validator('OPENROUTER_API_KEY')
+    def warn_missing_api_key(cls, v, values):
+        if not v and values.get("ENVIRONMENT") != "testing":
+            import warnings
+            warnings.warn(
+                "OPENROUTER_API_KEY not set! AI features may fail. "
+                "Set OPENROUTER_API_KEY in .env. Check account credits to avoid 402 errors."
+            )
         return v
 
     # ------------------------
@@ -195,17 +195,28 @@ class Settings(BaseSettings):
 
 
 # ------------------------
-# Load environment file dynamically
+# Test settings
 # ------------------------
-env_name = os.getenv("ENVIRONMENT", "development")
-env_file_map = {
-    "development": ".env.development",
-    "production": ".env.production",
-    "testing": ".env.testing"
-}
-env_file_path = Path(__file__).parent.parent / env_file_map.get(env_name, ".env.development")
+class TestSettings(Settings):
+    ENVIRONMENT: str = "testing"
+    DATABASE_PATH: str = "test_thirdvoice.db"
+    SECRET_KEY: str = secrets.token_hex(32)
+    LOG_LEVEL: str = "DEBUG"
 
-settings = Settings(_env_file=str(env_file_path))
+    class Config:
+        env_file = "/home/thirdvoice/the-third-voice-mvp/backend/.env.test"
+        env_file_encoding = "utf-8"
+
+
+# ------------------------
+# Instance
+# ------------------------
+def get_settings() -> Settings:
+    env = os.getenv("ENVIRONMENT", "development")
+    return TestSettings() if env == "testing" else Settings()
+
+
+settings = get_settings()
 
 
 # ------------------------
@@ -225,7 +236,7 @@ def setup_logging_level():
     logger.addHandler(console_handler)
 
     # Rotating file handler
-    log_dir = Path(__file__).parent.parent / "logs"
+    log_dir = Path("/home/thirdvoice/the-third-voice-mvp/backend/logs")
     log_dir.mkdir(parents=True, exist_ok=True)
     file_handler = RotatingFileHandler(
         log_dir / "app.log",
@@ -243,6 +254,81 @@ def setup_logging_level():
 
 
 # ------------------------
+# Validation
+# ------------------------
+def validate_required_settings():
+    required_for_production = [
+        ("SECRET_KEY", "JWT secret key"),
+        ("OPENROUTER_API_KEY", "OpenRouter API key"),
+    ]
+    if settings.is_production:
+        missing = []
+        for key, description in required_for_production:
+            value = getattr(settings, key, None)
+            if not value:
+                missing.append(f"{key} ({description})")
+        if missing:
+            raise ValueError(f"Missing required production settings: {', '.join(missing)}")
+
+
+# ------------------------
+# Database config
+# ------------------------
+def get_database_config():
+    return {
+        "database": settings.DATABASE_PATH,
+        "pragmas": {
+            "journal_mode": "wal",
+            "cache_size": -64 * 1000,
+            "foreign_keys": 1,
+            "ignore_check_constraints": 0,
+            "synchronous": 0,
+        }
+    }
+
+
+# ------------------------
+# Uvicorn config
+# ------------------------
+ENVIRONMENT_CONFIGS = {
+    "development": {
+        "reload": True,
+        "log_level": "debug",
+    },
+    "production": {
+        "reload": False,
+        "log_level": "info",
+        "workers": 1,
+    },
+    "testing": {
+        "reload": False,
+        "log_level": "debug",
+    }
+}
+
+
+def get_uvicorn_config() -> dict:
+    base_config = {
+        "app": "main:app",
+        "host": settings.HOST,
+        "port": settings.PORT,
+        "log_level": settings.LOG_LEVEL.lower(),
+    }
+    env_config = ENVIRONMENT_CONFIGS.get(settings.ENVIRONMENT, {})
+    base_config.update(env_config)
+    return base_config
+
+
+# ------------------------
 # Exports
 # ------------------------
-__all__ = ["settings", "Settings", "setup_logging_level"]
+__all__ = [
+    "settings",
+    "Settings",
+    "TestSettings",
+    "get_settings",
+    "validate_required_settings",
+    "get_database_config",
+    "get_uvicorn_config",
+    "setup_logging_level"
+]
