@@ -1,12 +1,15 @@
-/** @type {import('next').NextConfig} */
-const withPWA = require('next-pwa')({
+import { NextConfig } from 'next';
+import withPWA from 'next-pwa';
+import runtimeCaching from 'next-pwa/cache';
+
+const isDev = process.env.NODE_ENV === 'development';
+
+const nextConfig: NextConfig = withPWA({
   dest: 'public',
-  disable: process.env.NODE_ENV === 'development',
-  // Cloudflare-optimized PWA settings
+  disable: isDev,
   register: true,
   skipWaiting: true,
   buildExcludes: [/middleware-manifest\.json$/],
-  // Custom caching for voice app
   runtimeCaching: [
     {
       urlPattern: /^https:\/\/api\.thethirdvoice\.ai\/.*/i,
@@ -15,35 +18,35 @@ const withPWA = require('next-pwa')({
         cacheName: 'api-cache',
         expiration: {
           maxEntries: 32,
-          maxAgeSeconds: 24 * 60 * 60 // 24 hours
-        }
-      }
-    }
+          maxAgeSeconds: 24 * 60 * 60, // 24 hours
+        },
+      },
+    },
+    ...runtimeCaching, // default PWA runtime cache for static assets
   ],
-});
 
-const nextConfig = {
+  // Next.js core config
   output: 'export',
   trailingSlash: true,
-  images: { unoptimized: true },
-  
-  // Cloudflare Pages optimization
+  reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
-  
-  // Build optimization
+  images: { unoptimized: true },
+
+  env: {
+    NEXT_PUBLIC_API_URL: 'https://api.thethirdvoice.ai',
+  },
+
   eslint: {
     ignoreDuringBuilds: true,
   },
-  
-  // Webpack config optimized for Cloudflare + PWA
-  webpack: (config: any, { dev, isServer }: any) => {
-    // Only disable cache in Cloudflare environment
+
+  webpack: (config, { isServer }) => {
+    // Cloudflare Pages optimization
     if (process.env.CF_PAGES) {
       config.cache = false;
     }
-    
-    // Optimize for client-side
+
     if (!isServer) {
       config.resolve = config.resolve || {};
       config.resolve.fallback = {
@@ -53,13 +56,9 @@ const nextConfig = {
         tls: false,
       };
     }
-    
+
     return config;
   },
-  
-  env: {
-    NEXT_PUBLIC_API_URL: 'https://api.thethirdvoice.ai',
-  },
-};
+});
 
-module.exports = withPWA(nextConfig);
+export default nextConfig;
