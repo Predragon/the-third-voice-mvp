@@ -55,6 +55,8 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: Optional[str] = Field(None, description="OpenRouter API key")
     OPENROUTER_BASE_URL: str = Field("https://openrouter.ai/api/v1", description="OpenRouter API base URL")
     AI_MODEL: str = Field("meta-llama/llama-3.1-8b-instruct:free", description="Default AI model")
+    AI_MODEL_FALLBACK: str = Field("meta-llama/llama-3.1-8b-instruct:free", description="Fallback AI model if primary fails")
+    AI_RETRY_ATTEMPTS: int = Field(3, description="Number of retry attempts for AI requests")
     MAX_TOKENS: int = Field(1000, description="Maximum tokens for AI responses")
     TEMPERATURE: float = Field(0.7, description="AI model temperature")
     API_TIMEOUT: float = Field(30.0, description="Timeout for OpenRouter API calls in seconds")
@@ -69,6 +71,10 @@ class Settings(BaseSettings):
         [".txt", ".md", ".json", ".csv"],
         description="Allowed file extensions"
     )
+
+    # Health Check & Monitoring
+    HEALTH_CHECK_ENABLED: bool = Field(True, description="Enable health check endpoint")
+    METRICS_ENABLED: bool = Field(False, description="Enable Prometheus metrics")
 
     # Email
     SMTP_HOST: Optional[str] = Field(None, description="SMTP server host")
@@ -120,24 +126,54 @@ class Settings(BaseSettings):
 
     @validator('SECRET_KEY', pre=True)
     def validate_secret_key(cls, v, values):
+        # Get environment from values or fallback to env var
+        env = values.get("ENVIRONMENT") or os.getenv("ENVIRONMENT", "development")
+        
+        # Handle missing or default values
         if not v or v == "your-secret-key-change-in-production":
-            if values.get("ENVIRONMENT") == "production":
-                raise ValueError("SECRET_KEY must be set in production. Add it to .env file.")
+            if env == "production":
+                raise ValueError(
+                    "SECRET_KEY must be set in production. Add it to .env.production or set as environment variable."
+                )
+            
+            # Generate a key for development/testing
             generated_key = secrets.token_hex(32)
-            warnings.warn(
-                f"Using generated SECRET_KEY for {values.get('ENVIRONMENT', 'unknown')} environment. "
-                "Set SECRET_KEY in .env for consistent behavior."
-            )
+            if env != "testing":  # Don't spam warnings during tests
+                warnings.warn(
+                    f"Using generated SECRET_KEY for {env} environment. "
+                    "Set SECRET_KEY in your .env file for consistent behavior."
+                )
             return generated_key
+        
+        # Validate length
         if len(v) < 32:
             raise ValueError("SECRET_KEY must be at least 32 characters long for security.")
+        
         return v
 
     @validator('DATABASE_PATH')
-    def validate_database_path(cls, v):
+    def ensure_database_directory(cls, v):
+        """Enhanced database path validation"""
         db_path = Path(v)
+        
+        # Ensure parent directory exists and is writable
         db_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Check write permissions on parent directory
+        if not os.access(db_path.parent, os.W_OK):
+            raise ValueError(f"No write permission for database directory: {db_path.parent}")
+        
         return str(db_path.absolute())
+
+    @validator('PORT')
+    def validate_port(cls, v):
+        """Ensure port is in valid range"""
+        if not (1024 <= v <= 65535):
+            if v < 1024:
+                warnings.warn("Using privileged port (<1024). Ensure proper permissions.")
+            elif v > 65535:
+                raise ValueError("Port must be <= 65535")
+        return v
 
     @validator('ALLOWED_ORIGINS', pre=True)
     def parse_allowed_origins(cls, v):
@@ -151,12 +187,19 @@ class Settings(BaseSettings):
             return [host.strip() for host in v.split(',')]
         return v
 
+    @validator('AI_MODEL')
+    def validate_ai_model(cls, v):
+        """Ensure AI model is not empty and follows expected format"""
+        if not v or len(v.strip()) == 0:
+            raise ValueError("AI_MODEL cannot be empty")
+        return v.strip()
+
     @validator('OPENROUTER_API_KEY')
     def warn_missing_api_key(cls, v, values):
         if not v and values.get("ENVIRONMENT") != "testing":
             warnings.warn(
                 "OPENROUTER_API_KEY not set! AI features may fail. "
-                "Set OPENROUTER_API_KEY in .env. Check account credits to avoid 402 errors."
+                "Set OPENROUTER_API_KEY in your .env file."
             )
         return v
 
@@ -194,6 +237,22 @@ class Settings(BaseSettings):
     def get_rate_limit_per_minute(self, is_demo: bool = False) -> int:
         return self.RATE_LIMIT_DEMO_REQUESTS if is_demo else self.RATE_LIMIT_REQUESTS
 
+    def log_loaded_settings(self):
+        """Log key settings on startup (without secrets)"""
+        logger = logging.getLogger(__name__)
+        logger.info(f"🚀 Starting {self.APP_NAME}")
+        logger.info(f"Environment: {self.ENVIRONMENT}")
+        logger.info(f"Debug mode: {self.DEBUG}")
+        logger.info(f"Host:Port: {self.HOST}:{self.PORT}")
+        logger.info(f"Database: {self.DATABASE_PATH}")
+        logger.info(f"AI Model: {self.AI_MODEL}")
+        logger.info(f"CORS Origins: {len(self.ALLOWED_ORIGINS)} configured")
+        
+        if self.OPENROUTER_API_KEY:
+            logger.info("✅ OpenRouter API key configured")
+        else:
+            logger.warning("⚠️ OpenRouter API key not set")
+
 
 # ------------------------
 # Test settings
@@ -210,17 +269,51 @@ class TestSettings(Settings):
 # ------------------------
 env_name = os.getenv("ENVIRONMENT", "development")
 env_file_map = {
-    "development": ".env.development",
+    "development": ".env",
     "production": ".env.production",
     "testing": ".env.testing",
 }
-env_file_path = Path(__file__).parent.parent.parent / env_file_map.get(env_name, ".env.development")
+BASE_DIR = Path(__file__).parent.parent.parent
+env_file_path = BASE_DIR / env_file_map.get(env_name, ".env")
 
 
 def get_settings() -> Settings:
+    """Enhanced settings loader with better error handling"""
+    
     if env_name == "testing":
-        return TestSettings(_env_file=str(env_file_path))
-    return Settings(_env_file=str(env_file_path))
+        return TestSettings(_env_file=str(env_file_path) if env_file_path.exists() else None)
+    
+    # Check if env file exists
+    if not env_file_path.exists():
+        if env_name == "production":
+            # More helpful error for production
+            raise FileNotFoundError(
+                f"❌ Production environment file not found: {env_file_path}\n"
+                f"Create it with: touch {env_file_path}\n"
+                f"Or set environment variables directly."
+            )
+        else:
+            warnings.warn(
+                f"⚠️ Env file {env_file_path} not found. "
+                f"Falling back to system environment variables."
+            )
+            return Settings()
+    
+    try:
+        settings_instance = Settings(_env_file=str(env_file_path))
+        logger = logging.getLogger(__name__)
+        logger.info(f"✅ Loaded settings from {env_file_path} (ENV={env_name})")
+        
+        # Log key configuration on startup
+        settings_instance.log_loaded_settings()
+        
+        return settings_instance
+        
+    except Exception as e:
+        raise RuntimeError(
+            f"❌ Failed to load settings from {env_file_path}: {str(e)}\n"
+            f"Check your environment file syntax and required variables."
+        ) from e
 
 
 settings = get_settings()
