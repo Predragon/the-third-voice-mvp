@@ -281,39 +281,25 @@ def get_settings() -> Settings:
     """Enhanced settings loader with better error handling"""
     
     if env_name == "testing":
-        return TestSettings(_env_file=str(env_file_path) if env_file_path.exists() else None)
+        return TestSettings()
     
-    # Check if env file exists
-    if not env_file_path.exists():
-        if env_name == "production":
-            # More helpful error for production
-            raise FileNotFoundError(
-                f"❌ Production environment file not found: {env_file_path}\n"
-                f"Create it with: touch {env_file_path}\n"
-                f"Or set environment variables directly."
-            )
-        else:
-            warnings.warn(
-                f"⚠️ Env file {env_file_path} not found. "
-                f"Falling back to system environment variables."
-            )
-            return Settings()
-    
-    try:
-        settings_instance = Settings(_env_file=str(env_file_path))
+    # Load the environment file manually first
+    if env_file_path.exists():
+        from dotenv import load_dotenv
+        load_dotenv(env_file_path, override=True)
         logger = logging.getLogger(__name__)
-        logger.info(f"✅ Loaded settings from {env_file_path} (ENV={env_name})")
-        
-        # Log key configuration on startup
-        settings_instance.log_loaded_settings()
-        
-        return settings_instance
-        
-    except Exception as e:
-        raise RuntimeError(
-            f"❌ Failed to load settings from {env_file_path}: {str(e)}\n"
-            f"Check your environment file syntax and required variables."
-        ) from e
+        logger.info(f"✅ Loaded environment from {env_file_path}")
+    else:
+        if env_name == "production":
+            raise FileNotFoundError(f"❌ Required file not found: {env_file_path}")
+        else:
+            warnings.warn(f"⚠️ Env file {env_file_path} not found.")
+    
+    # Create settings instance (will pick up loaded environment variables)
+    settings_instance = Settings()
+    settings_instance.log_loaded_settings()
+    
+    return settings_instance
 
 
 settings = get_settings()
