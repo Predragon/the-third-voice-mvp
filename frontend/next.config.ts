@@ -1,31 +1,9 @@
 import { NextConfig } from 'next';
-import withPWA from 'next-pwa';
-import runtimeCaching from 'next-pwa/cache';
 
 const isDev = process.env.NODE_ENV === 'development';
 
-const nextConfig: NextConfig = withPWA({
-  dest: 'public',
-  disable: isDev,
-  register: true,
-  skipWaiting: true,
-  buildExcludes: [/middleware-manifest\.json$/],
-  runtimeCaching: [
-    {
-      urlPattern: /^https:\/\/api\.thethirdvoice\.ai\/.*/i,
-      handler: 'NetworkFirst',
-      options: {
-        cacheName: 'api-cache',
-        expiration: {
-          maxEntries: 32,
-          maxAgeSeconds: 24 * 60 * 60, // 24 hours
-        },
-      },
-    },
-    ...runtimeCaching, // default PWA runtime cache for static assets
-  ],
-
-  // Next.js core config
+const nextConfig: NextConfig = {
+  // Static export for simpler deployment
   output: 'export',
   trailingSlash: true,
   reactStrictMode: true,
@@ -59,6 +37,6 @@ const nextConfig: NextConfig = withPWA({
 
     return config;
   },
-});
+};
 
 export default nextConfig;
