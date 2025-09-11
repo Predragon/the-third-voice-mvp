@@ -1,13 +1,26 @@
 "use client"
 import React, { useState } from 'react';
 
+interface TestResult {
+  status: number | string;
+  success: boolean;
+  data?: any;
+  error?: string;
+  url: string;
+  timestamp: string;
+}
+
+interface TestResults {
+  [key: string]: TestResult;
+}
+
 export default function DebugPage() {
-  const [testResults, setTestResults] = useState({});
-  const [isLoading, setIsLoading] = useState(false);
+  const [testResults, setTestResults] = useState<TestResults>({});
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.thethirdvoice.ai';
 
-  const testEndpoint = async (endpoint: string, name: string) => {
+  const testEndpoint = async (endpoint: string, name: string): Promise<void> => {
     setIsLoading(true);
     try {
       const fullUrl = `${apiUrl}${endpoint}`;
@@ -39,7 +52,7 @@ export default function DebugPage() {
     setIsLoading(false);
   };
 
-  const testAllEndpoints = async () => {
+  const testAllEndpoints = async (): Promise<void> => {
     setTestResults({});
     await testEndpoint('', 'Root');
     await testEndpoint('/api/health', 'Health');
@@ -78,7 +91,7 @@ export default function DebugPage() {
         {Object.keys(testResults).length > 0 && (
           <div className="mt-8 space-y-4">
             <h2 className="text-xl font-bold">Test Results</h2>
-            {Object.entries(testResults).map(([name, result]) => (
+            {Object.entries(testResults).map(([name, result]: [string, TestResult]) => (
               <div key={name} className={`p-4 rounded-lg border-2 ${
                 result.success ? 'border-green-500 bg-green-900/20' : 'border-red-500 bg-red-900/20'
               }`}>
