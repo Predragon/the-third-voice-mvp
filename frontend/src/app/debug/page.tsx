@@ -18,7 +18,7 @@ export default function DebugPage() {
   const [testResults, setTestResults] = useState<TestResults>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.thethirdvoice.ai';
+  const apiUrl = '/api/proxy'; // Use the Next.js proxy instead
 
   const testEndpoint = async (endpoint: string, name: string): Promise<void> => {
     setIsLoading(true);
@@ -134,9 +134,21 @@ export default function DebugPage() {
           </div>
         )}
 
-        <div className="mt-8 p-4 bg-green-800 rounded-xl shadow">
-          <p className="text-lg">📡 Status</p>
-          <p className="text-xl font-semibold">💙 The Third Voice is alive — for Samantha, and for every family. 🕊️</p>
+        <div className="mt-8 p-4 bg-yellow-800 rounded-xl shadow">
+          <p className="text-lg font-bold">🔧 CORS Troubleshooting</p>
+          <div className="text-sm mt-2 space-y-1">
+            <p><strong>If you see "Failed to fetch" errors:</strong></p>
+            <p>1. This is likely a CORS issue</p>
+            <p>2. Your API server needs CORS headers allowing your frontend domain</p>
+            <p>3. Add this to your API server code:</p>
+            <pre className="bg-gray-900 p-2 rounded mt-1 text-xs overflow-auto">
+{`# FastAPI (Python)
+from fastapi.middleware.cors import CORSMiddleware
+app.add_middleware(CORSMiddleware, 
+  allow_origins=["${typeof window !== 'undefined' ? window.location.origin : 'https://your-app.vercel.app'}"],
+  allow_methods=["*"], allow_headers=["*"])`}
+            </pre>
+          </div>
         </div>
 
         <div className="mt-8 text-sm text-gray-400">
