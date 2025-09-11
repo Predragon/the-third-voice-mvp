@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 interface TestResult {
   status: number | string;
   success: boolean;
-  data?: any;
+  data?: unknown; // Changed from 'any' to 'unknown'
   error?: string;
   url: string;
   timestamp: string;
