@@ -30,7 +30,7 @@ export default function DebugPage() {
         [name]: {
           status: 'ERROR',
           success: false,
-          error: error.message,
+          error: (error as Error).message,
           url: `${apiUrl}${endpoint}`,
           timestamp: new Date().toLocaleTimeString()
         }
