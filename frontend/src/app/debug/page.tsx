@@ -7,7 +7,7 @@ export default function DebugPage() {
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.thethirdvoice.ai';
 
-  const testEndpoint = async (endpoint, name) => {
+  const testEndpoint = async (endpoint: string, name: string) => {
     setIsLoading(true);
     try {
       const fullUrl = `${apiUrl}${endpoint}`;
