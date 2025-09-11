@@ -114,7 +114,7 @@ export default function DebugPage() {
                 {result.success ? (
                   <div>
                     <p className="text-green-400 mb-2">✅ Connection successful!</p>
-                    {result.data && (
+                    {result.data != null && (
                       <details className="text-sm">
                         <summary className="cursor-pointer text-blue-400">View Response Data</summary>
                         <pre className="mt-2 p-2 bg-gray-800 rounded overflow-auto text-xs">
