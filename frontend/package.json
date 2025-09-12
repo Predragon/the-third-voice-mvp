@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "test": "jest --watchAll=false --passWithNoTests",
-    "lint": "next lint"
+    "lint": "next lint",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
