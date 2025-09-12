@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET(req: NextRequest, context: { params: { path: string[] } }) {
-  const { path } = context.params;
-  const url = `https://api.thethirdvoice.ai/${path.join('/')}`;
+export async function GET(
+  req: NextRequest, 
+  { params }: { params: Promise<{ path: string[] }> }
+) {
+  const resolvedParams = await params;
+  const url = `https://api.thethirdvoice.ai/${resolvedParams.path.join('/')}`;
 
   try {
     const response = await fetch(url, {
@@ -23,9 +26,12 @@ export async function GET(req: NextRequest, context: { params: { path: string[] 
   }
 }
 
-export async function POST(req: NextRequest, context: { params: { path: string[] } }) {
-  const { path } = context.params;
-  const url = `https://api.thethirdvoice.ai/${path.join('/')}`;
+export async function POST(
+  req: NextRequest, 
+  { params }: { params: Promise<{ path: string[] }> }
+) {
+  const resolvedParams = await params;
+  const url = `https://api.thethirdvoice.ai/${resolvedParams.path.join('/')}`;
   const body = await req.json();
 
   try {
