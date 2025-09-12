@@ -18,17 +18,18 @@ export default function DebugPage() {
   const [testResults, setTestResults] = useState<TestResults>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const apiUrl = '/api/proxy'; // Proxy to backend
+  const apiUrl = '/api/proxy';
 
-  const testEndpoint = async (endpoint: string, name: string): Promise<void> => {
+  const testEndpoint = async (endpoint: string, name: string, options: RequestInit = {}): Promise<void> => {
     setIsLoading(true);
     try {
       const fullUrl = `${apiUrl}${endpoint}`;
       const response = await fetch(fullUrl, {
-        cache: 'no-store', // Ensure fresh responses
+        cache: 'no-store',
+        ...options,
       });
       const data = await response.json();
-      
+
       setTestResults(prev => ({
         ...prev,
         [name]: {
@@ -56,17 +57,21 @@ export default function DebugPage() {
 
   const testAllEndpoints = async (): Promise<void> => {
     setTestResults({});
-    await testEndpoint('/', 'Root'); // Adjusted to match backend
+    await testEndpoint('/', 'Root');
     await testEndpoint('/api/health', 'Health');
     await testEndpoint('/docs', 'Docs');
     await testEndpoint('/openapi.json', 'OpenAPI');
-    // Add more endpoints if needed, e.g., '/api/messages/quick-transform'
+    await testEndpoint('/api/messages/quick-transform', 'Quick Transform', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: "Test message", contact_context: "friend" }),
+    });
   };
 
   return (
     <div className="min-h-screen bg-gray-900 text-green-300 p-8">
       <h1 className="text-2xl font-bold mb-4">🔍 Debug Dashboard</h1>
-      
+
       <div className="space-y-4">
         <div className="bg-gray-800 p-4 rounded-lg">
           <p><strong>API URL:</strong> <span className="text-blue-400">{apiUrl}</span></p>
@@ -81,7 +86,7 @@ export default function DebugPage() {
           >
             {isLoading ? 'Testing...' : 'Test All Endpoints'}
           </button>
-          
+
           <button 
             onClick={() => testEndpoint('/', 'Root')}
             disabled={isLoading}
@@ -109,11 +114,11 @@ export default function DebugPage() {
                     <span className="text-sm text-gray-400">{result.timestamp}</span>
                   </div>
                 </div>
-                
+
                 <p className="text-sm text-gray-300 mb-2">
                   <strong>URL:</strong> {result.url}
                 </p>
-                
+
                 {result.success ? (
                   <div>
                     <p className="text-green-400 mb-2">✅ Connection successful!</p>
