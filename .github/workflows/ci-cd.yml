@@ -2,9 +2,9 @@ name: ThirdVoice CI/CD Pipeline
 
 on:
   push:
-    branches: [ develop ]
+    branches: [ develop, main ]
   pull_request:
-    branches: [ develop ]
+    branches: [ develop, main ]
 
 # Global environment variables
 env:
@@ -16,6 +16,10 @@ jobs:
   # Backend Testing
   test-backend:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -25,24 +29,46 @@ jobs:
       with:
         python-version: '3.10'
 
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
     - name: Install backend dependencies
       run: |
-        cd backend
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pytest pytest-asyncio
+        pip install pytest pytest-asyncio pytest-cov
 
-    - name: Run backend tests
+    - name: Run backend linting
       run: |
-        cd backend
-        python -m pytest tests/ -v
+        pip install flake8 black
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        black --check .
+
+    - name: Run backend tests with coverage
+      run: |
+        python -m pytest tests/ -v --cov=. --cov-report=xml
       env:
         SECRET_KEY: ${{ secrets.SECRET_KEY }}
         OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 
+    - name: Upload backend coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./backend/coverage.xml
+        flags: backend
+
   # Frontend Testing
   test-frontend:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -50,24 +76,32 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20' # Updated to match previous recommendation
+        node-version: '20'
         cache: 'npm'
         cache-dependency-path: frontend/package-lock.json
 
     - name: Install frontend dependencies
-      run: |
-        cd frontend
-        npm ci
+      run: npm ci
+
+    - name: Run ESLint
+      run: npm run lint
+
+    - name: Run TypeScript check
+      run: npm run type-check
 
     - name: Run frontend tests
-      run: |
-        cd frontend
-        npm test -- --watchAll=false --passWithNoTests
+      run: npm test -- --watchAll=false --passWithNoTests --coverage
+
+    - name: Upload frontend coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./frontend/coverage/lcov.info
+        flags: frontend
 
     - name: Build frontend
-      run: |
-        cd frontend
-        npm run build
+      run: npm run build
+      env:
+        NEXT_PUBLIC_API_URL: ${{ env.NEXT_PUBLIC_API_URL }}
 
   # Security Scanning
   security-scan:
@@ -76,15 +110,26 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Scan for vulnerabilities
+    - name: Run dependency review
       if: github.event_name == 'pull_request'
       uses: actions/dependency-review-action@v3
 
-  # Deployment
-  deploy:
-    needs: [test-backend, test-frontend, security-scan]
+    - name: Run CodeQL Analysis
+      if: github.event_name == 'push'
+      uses: github/codeql-action/init@v2
+      with:
+        languages: python, javascript
+
+    - name: Perform CodeQL Analysis
+      if: github.event_name == 'push'
+      uses: github/codeql-action/analyze@v2
+
+  # Deployment to Staging (develop branch)
+  deploy-staging:
+    needs: [test-backend, test-frontend]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    environment: staging
     
     steps:
     - name: Checkout code
@@ -102,11 +147,49 @@ jobs:
         cd frontend
         npm ci
 
-    - name: Deploy to Vercel
+    - name: Deploy to Vercel (Preview)
       run: |
         cd frontend
-        npx vercel --prod
+        npx vercel --yes
       env:
         VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
         VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  # Deployment to Production (main branch)
+  deploy-production:
+    needs: [test-backend, test-frontend, security-scan]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js for deployment
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install frontend dependencies
+      run: |
+        cd frontend
+        npm ci
+
+    - name: Deploy to Vercel (Production)
+      run: |
+        cd frontend
+        npx vercel --prod --yes
+      env:
+        VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+    - name: Notify deployment success
+      if: success()
+      run: |
+        echo "🚀 Production deployment successful!"
+        # Add Slack/Discord notification here if needed
