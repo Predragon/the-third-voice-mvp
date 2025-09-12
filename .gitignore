@@ -58,6 +58,7 @@ keys/
 *.bak
 *.backup
 *.old
+*.backup_*
 start-thirdvoice.sh
 stop-thirdvoice.sh
 test_api.sh
