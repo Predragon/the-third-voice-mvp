@@ -1,20 +1,9 @@
 import { NextConfig } from 'next';
 import withPWA from 'next-pwa';
-import runtimeCaching from 'next-pwa/cache';
 
 const isDev = process.env.NODE_ENV === 'development';
 
 const nextConfig: NextConfig = {
-  // PWA Configuration
-  ...withPWA({
-    dest: 'public',
-    disable: isDev,
-    register: true,
-    skipWaiting: true,
-    buildExcludes: [/middleware-manifest\.json$/],
-    runtimeCaching, // Use default runtimeCaching from next-pwa/cache
-  }),
-
   // Proxy rewrites (top-level Next.js config)
   async rewrites() {
     return [
@@ -30,7 +19,10 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
-  images: { unoptimized: true },
+  images: { 
+    unoptimized: true,
+    domains: ['localhost'],
+  },
 
   env: {
     NEXT_PUBLIC_API_URL: 'https://api.thethirdvoice.ai',
@@ -59,4 +51,45 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withPWA({
+  dest: 'public',
+  disable: isDev,
+  register: true,
+  skipWaiting: true,
+  buildExcludes: [/middleware-manifest\.json$/],
+  runtimeCaching: [
+    {
+      urlPattern: /^https?.*/,
+      handler: 'NetworkFirst',
+      options: {
+        cacheName: 'offlineCache',
+        expiration: {
+          maxEntries: 200,
+          maxAgeSeconds: 24 * 60 * 60, // 24 hours
+        },
+      },
+    },
+    {
+      urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'images',
+        expiration: {
+          maxEntries: 100,
+          maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+        },
+      },
+    },
+    {
+      urlPattern: /\.(?:js|css|woff2?|ttf|eot)$/,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'static-resources',
+        expiration: {
+          maxEntries: 100,
+          maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+        },
+      },
+    },
+  ],
+})(nextConfig);
