@@ -4,28 +4,18 @@ import runtimeCaching from 'next-pwa/cache';
 
 const isDev = process.env.NODE_ENV === 'development';
 
-const nextConfig: NextConfig = withPWA({
-  dest: 'public',
-  disable: isDev,
-  register: true,
-  skipWaiting: true,
-  buildExcludes: [/middleware-manifest\.json$/],
-  runtimeCaching: [
-    {
-      urlPattern: /^https:\/\/api\.thethirdvoice\.ai\/.*/i,
-      handler: 'NetworkFirst',
-      options: {
-        cacheName: 'api-cache',
-        expiration: {
-          maxEntries: 32,
-          maxAgeSeconds: 24 * 60 * 60, // 24 hours
-        },
-      },
-    },
-    ...runtimeCaching,
-  ],
+const nextConfig: NextConfig = {
+  // PWA Configuration
+  ...withPWA({
+    dest: 'public',
+    disable: isDev,
+    register: true,
+    skipWaiting: true,
+    buildExcludes: [/middleware-manifest\.json$/],
+    runtimeCaching, // Use default runtimeCaching from next-pwa/cache
+  }),
 
-  // Proxy rewrites
+  // Proxy rewrites (top-level Next.js config)
   async rewrites() {
     return [
       {
@@ -35,13 +25,12 @@ const nextConfig: NextConfig = withPWA({
     ];
   },
 
-  // Remove static export for dynamic rendering
-  // output: 'export', // Removed to enable serverless/SSR
+  // Next.js core config
   trailingSlash: true,
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
-  images: { unoptimized: true }, // Still needed for static assets if not using Next.js Image optimization
+  images: { unoptimized: true },
 
   env: {
     NEXT_PUBLIC_API_URL: 'https://api.thethirdvoice.ai',
@@ -68,6 +57,6 @@ const nextConfig: NextConfig = withPWA({
 
     return config;
   },
-});
+};
 
 export default nextConfig;
