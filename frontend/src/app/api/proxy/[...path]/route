@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { RouteHandlerContext } from 'next/server';
 
-export async function GET(req: NextRequest, context: RouteHandlerContext) {
-  const { path } = context.params;
-  const url = `https://api.thethirdvoice.ai/${path.join('/')}`;
+export async function GET(req: NextRequest, { params }: { params: { path: string[] } }) {
+  const url = `https://api.thethirdvoice.ai/${params.path.join('/')}`;
 
   try {
     const response = await fetch(url, {
@@ -24,9 +22,8 @@ export async function GET(req: NextRequest, context: RouteHandlerContext) {
   }
 }
 
-export async function POST(req: NextRequest, context: RouteHandlerContext) {
-  const { path } = context.params;
-  const url = `https://api.thethirdvoice.ai/${path.join('/')}`;
+export async function POST(req: NextRequest, { params }: { params: { path: string[] } }) {
+  const url = `https://api.thethirdvoice.ai/${params.path.join('/')}`;
   const body = await req.json();
 
   try {
