@@ -1,55 +1,59 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextConfig } from 'next';
+import withPWA from 'next-pwa';
 
-export async function GET(
-  req: NextRequest, 
-  { params }: { params: Promise<{ path: string[] }> }
-) {
-  const resolvedParams = await params;
-  const url = `https://api.thethirdvoice.ai/${resolvedParams.path.join('/')}`;
+const isDev = process.env.NODE_ENV === 'development';
 
-  try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
+const nextConfig: NextConfig = {
+  // Add your existing Next.js config options here
+  reactStrictMode: true,
+  swcMinify: true,
+  images: {
+    domains: ['localhost'],
+  },
+  // Add any other config you had
+};
+
+export default withPWA({
+  dest: 'public',
+  disable: isDev,
+  register: true,
+  skipWaiting: true,
+  runtimeCaching: [
+    {
+      urlPattern: /^https?.*/,
+      handler: 'NetworkFirst',
+      options: {
+        cacheName: 'offlineCache',
+        expiration: {
+          maxEntries: 200,
+          maxAgeSeconds: 24 * 60 * 60, // 24 hours
+        },
+        cacheKeyWillBeUsed: async ({ request }) => {
+          return `${request.method}-${request.url}`;
+        },
       },
-      cache: 'no-store',
-    });
-
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
-  } catch (error) {
-    return NextResponse.json(
-      { error: (error as Error).message },
-      { status: 500 }
-    );
-  }
-}
-
-export async function POST(
-  req: NextRequest, 
-  { params }: { params: Promise<{ path: string[] }> }
-) {
-  const resolvedParams = await params;
-  const url = `https://api.thethirdvoice.ai/${resolvedParams.path.join('/')}`;
-  const body = await req.json();
-
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+    },
+    {
+      urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'images',
+        expiration: {
+          maxEntries: 100,
+          maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+        },
       },
-      body: JSON.stringify(body),
-      cache: 'no-store',
-    });
-
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
-  } catch (error) {
-    return NextResponse.json(
-      { error: (error as Error).message },
-      { status: 500 }
-    );
-  }
-}
+    },
+    {
+      urlPattern: /\.(?:js|css|woff2?|ttf|eot)$/,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'static-resources',
+        expiration: {
+          maxEntries: 100,
+          maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+        },
+      },
+    },
+  ],
+})(nextConfig);
