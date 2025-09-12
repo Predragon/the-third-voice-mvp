@@ -1,5 +1,10 @@
 name: ThirdVoice CI/CD Pipeline
 
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
 on:
   push:
     branches: [ develop ]
