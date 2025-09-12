@@ -1,12 +1,16 @@
 name: ThirdVoice CI/CD Pipeline
 
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
 on:
   push:
     branches: [ develop ]
   pull_request:
     branches: [ develop ]
 
-# ADD THIS ENV SECTION  ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
 env:
   SECRET_KEY: ${{ secrets.SECRET_KEY }}
   OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -15,7 +19,6 @@ jobs:
   # Backend Testing
   test-backend:
     runs-on: ubuntu-latest
-    # REMOVE continue-on-error: true  ← We want real tests now!
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -65,12 +68,20 @@ jobs:
         cd frontend
         npm run build
 
-  # Security Scanning
+  # Security Scanning (CodeQL)
   security-scan:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: python, javascript
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
 
     - name: Scan for vulnerabilities
       if: github.event_name == 'pull_request'

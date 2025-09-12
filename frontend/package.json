@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "test": "jest --watchAll=false --passWithNoTests",
-    "lint": "next lint"
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "autoprefixer": "^10.4.21",
@@ -29,6 +30,7 @@
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^14.5.2",
     "@types/jest": "^29.5.12",
+    "@types/next-pwa": "^5.6.9",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18.2.7",
