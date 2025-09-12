@@ -8,6 +8,7 @@
     "start": "next start",
     "test": "jest --watchAll=false --passWithNoTests",
     "lint": "next lint"
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "autoprefixer": "^10.4.21",
