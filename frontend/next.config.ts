@@ -22,16 +22,26 @@ const nextConfig: NextConfig = withPWA({
         },
       },
     },
-    ...runtimeCaching, // default PWA runtime cache for static assets
+    ...runtimeCaching,
   ],
 
-  // Next.js core config
-  output: 'export',
+  // Proxy rewrites
+  async rewrites() {
+    return [
+      {
+        source: '/api/proxy/:path*',
+        destination: 'https://api.thethirdvoice.ai/:path*',
+      },
+    ];
+  },
+
+  // Remove static export for dynamic rendering
+  // output: 'export', // Removed to enable serverless/SSR
   trailingSlash: true,
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
-  images: { unoptimized: true },
+  images: { unoptimized: true }, // Still needed for static assets if not using Next.js Image optimization
 
   env: {
     NEXT_PUBLIC_API_URL: 'https://api.thethirdvoice.ai',
@@ -42,7 +52,6 @@ const nextConfig: NextConfig = withPWA({
   },
 
   webpack: (config, { isServer }) => {
-    // Cloudflare Pages optimization
     if (process.env.CF_PAGES) {
       config.cache = false;
     }

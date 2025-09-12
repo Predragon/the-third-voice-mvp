@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 interface TestResult {
   status: number | string;
   success: boolean;
-  data?: unknown; // Changed from 'any' to 'unknown'
+  data?: unknown;
   error?: string;
   url: string;
   timestamp: string;
@@ -18,13 +18,15 @@ export default function DebugPage() {
   const [testResults, setTestResults] = useState<TestResults>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const apiUrl = '/api/proxy'; // Use the Next.js proxy instead
+  const apiUrl = '/api/proxy'; // Proxy to backend
 
   const testEndpoint = async (endpoint: string, name: string): Promise<void> => {
     setIsLoading(true);
     try {
       const fullUrl = `${apiUrl}${endpoint}`;
-      const response = await fetch(fullUrl);
+      const response = await fetch(fullUrl, {
+        cache: 'no-store', // Ensure fresh responses
+      });
       const data = await response.json();
       
       setTestResults(prev => ({
@@ -54,10 +56,11 @@ export default function DebugPage() {
 
   const testAllEndpoints = async (): Promise<void> => {
     setTestResults({});
-    await testEndpoint('', 'Root');
+    await testEndpoint('/', 'Root'); // Adjusted to match backend
     await testEndpoint('/api/health', 'Health');
     await testEndpoint('/docs', 'Docs');
     await testEndpoint('/openapi.json', 'OpenAPI');
+    // Add more endpoints if needed, e.g., '/api/messages/quick-transform'
   };
 
   return (
@@ -67,7 +70,7 @@ export default function DebugPage() {
       <div className="space-y-4">
         <div className="bg-gray-800 p-4 rounded-lg">
           <p><strong>API URL:</strong> <span className="text-blue-400">{apiUrl}</span></p>
-          <p><strong>Client-side check</strong></p>
+          <p><strong>Client-side check via proxy</strong></p>
         </div>
 
         <div className="flex space-x-4">
@@ -80,7 +83,7 @@ export default function DebugPage() {
           </button>
           
           <button 
-            onClick={() => testEndpoint('', 'Root')}
+            onClick={() => testEndpoint('/', 'Root')}
             disabled={isLoading}
             className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
           >
@@ -134,27 +137,18 @@ export default function DebugPage() {
           </div>
         )}
 
-        <div className="mt-8 p-4 bg-yellow-800 rounded-xl shadow">
-          <p className="text-lg font-bold">🔧 CORS Troubleshooting</p>
+        <div className="mt-8 p-4 bg-blue-800 rounded-xl shadow">
+          <p className="text-lg font-bold">🔧 Proxy Configuration</p>
           <div className="text-sm mt-2 space-y-1">
-            <p><strong>If you see &quot;Failed to fetch&quot; errors:</strong></p>
-            <p>1. This is likely a CORS issue</p>
-            <p>2. Your API server needs CORS headers allowing your frontend domain</p>
-            <p>3. Add this to your API server code:</p>
-            <pre className="bg-gray-900 p-2 rounded mt-1 text-xs overflow-auto">
-{`# FastAPI (Python)
-from fastapi.middleware.cors import CORSMiddleware
-app.add_middleware(CORSMiddleware, 
-  allow_origins=["${typeof window !== 'undefined' ? window.location.origin : 'https://your-app.vercel.app'}"],
-  allow_methods=["*"], allow_headers=["*"])`}
-            </pre>
+            <p>Requests are proxied through /api/proxy to https://api.thethirdvoice.ai</p>
+            <p>Ensure backend is running on Raspberry Pi and Cloudflare Tunnel is active.</p>
           </div>
         </div>
 
         <div className="mt-8 text-sm text-gray-400">
           <h3 className="font-bold mb-2">Manual Test Links:</h3>
           <div className="space-x-4">
-            <a href={`${apiUrl}`} target="_blank" rel="noopener noreferrer" className="underline text-blue-400 hover:text-blue-300">Root API</a>
+            <a href={`${apiUrl}/`} target="_blank" rel="noopener noreferrer" className="underline text-blue-400 hover:text-blue-300">Root API</a>
             <a href={`${apiUrl}/docs`} target="_blank" rel="noopener noreferrer" className="underline text-blue-400 hover:text-blue-300">API Docs</a>
             <a href={`${apiUrl}/api/health`} target="_blank" rel="noopener noreferrer" className="underline text-blue-400 hover:text-blue-300">Health Check</a>
           </div>
