@@ -6,16 +6,16 @@ on:
   pull_request:
     branches: [ develop ]
 
-# ADD THIS ENV SECTION  ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+# Global environment variables
 env:
   SECRET_KEY: ${{ secrets.SECRET_KEY }}
   OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+  NEXT_PUBLIC_API_URL: https://api.thethirdvoice.ai
 
 jobs:
   # Backend Testing
   test-backend:
     runs-on: ubuntu-latest
-    # REMOVE continue-on-error: true  ← We want real tests now!
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -28,13 +28,17 @@ jobs:
     - name: Install backend dependencies
       run: |
         cd backend
+        python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pytest
+        pip install pytest pytest-asyncio
 
     - name: Run backend tests
       run: |
         cd backend
         python -m pytest tests/ -v
+      env:
+        SECRET_KEY: ${{ secrets.SECRET_KEY }}
+        OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 
   # Frontend Testing
   test-frontend:
@@ -44,9 +48,9 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '20' # Updated to match previous recommendation
         cache: 'npm'
         cache-dependency-path: frontend/package-lock.json
 
@@ -80,13 +84,29 @@ jobs:
   deploy:
     needs: [test-backend, test-frontend, security-scan]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/develop'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Deployment preparation
+    - name: Setup Node.js for deployment
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install frontend dependencies
       run: |
-        echo "🎉 All tests passed! Ready for deployment."
-        echo "Add your deployment commands here"
+        cd frontend
+        npm ci
+
+    - name: Deploy to Vercel
+      run: |
+        cd frontend
+        npx vercel --prod
+      env:
+        VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
