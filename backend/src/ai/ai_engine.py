@@ -42,7 +42,8 @@ class AIResponse:
                  analysis_depth: str = AnalysisDepth.QUICK.value,
                  suggested_responses: List[str] = None,
                  communication_patterns: List[str] = None,
-                 relationship_dynamics: List[str] = None):
+                 relationship_dynamics: List[str] = None,
+                 alternatives: List[str] = None):    # <--- Added 'alternatives'
         self.transformed_message = transformed_message
         self.healing_score = healing_score
         self.sentiment = sentiment
@@ -57,7 +58,7 @@ class AIResponse:
         self.suggested_responses = suggested_responses or []
         self.communication_patterns = communication_patterns or []
         self.relationship_dynamics = relationship_dynamics or []
-
+        self.alternatives = alternatives or []   # <--- Added initialization
 
 class AIEngine:
     """AI engine that works around content filtering with deep analysis capabilities"""
