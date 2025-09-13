@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from 'react';
 import { Play, CheckCircle, XCircle, Eye, RefreshCw } from 'lucide-react';
 
