@@ -3,13 +3,15 @@
 import React, { useState } from 'react';
 import { Play, CheckCircle, XCircle, Eye, RefreshCw } from 'lucide-react';
 
+type Endpoint = { name: string; path: string };
+
 const DebugDashboard = () => {
   const [results, setResults] = useState({});
   const [isTestingAll, setIsTestingAll] = useState(false);
 
-  const endpoints = [
+  const endpoints: Endpoint[] = [
     { name: 'Root Endpoint', path: '' },
-    { name: 'Health Check', path: 'api/health/' }, // Added trailing slash
+    { name: 'Health Check', path: 'api/health/' },
     { name: 'Database Health', path: 'api/health/database' },
     { name: 'AI Engine Health', path: 'api/health/ai-engine' },
     { name: 'System Health', path: 'api/health/system' },
@@ -26,15 +28,15 @@ const DebugDashboard = () => {
     { name: 'Feedback Categories', path: 'api/feedback/categories' }
   ];
 
-  const testEndpoint = async (endpoint) => {
+  const testEndpoint = async (endpoint: Endpoint) => {
     const startTime = Date.now();
     try {
       const url = `/api/proxy/${endpoint.path}`;
-      
+
       // Use appropriate method based on endpoint
-      const method = endpoint.path.includes('quick-transform') || 
-                    endpoint.path.includes('quick-interpret') ? 'POST' : 'GET';
-      
+      const method = endpoint.path.includes('quick-transform') ||
+                     endpoint.path.includes('quick-interpret') ? 'POST' : 'GET';
+
       const options = {
         method,
         headers: {
@@ -50,10 +52,10 @@ const DebugDashboard = () => {
 
       const response = await fetch(url, options);
       const responseTime = Date.now() - startTime;
-      
+
       let data;
       const contentType = response.headers.get('content-type');
-      
+
       if (contentType && contentType.includes('application/json')) {
         data = await response.json();
       } else {
@@ -69,7 +71,7 @@ const DebugDashboard = () => {
         method,
         timestamp: new Date().toLocaleTimeString()
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         status: 'error',
         error: error.message,
@@ -99,7 +101,7 @@ const DebugDashboard = () => {
     setIsTestingAll(false);
   };
 
-  const testSingleEndpoint = async (endpoint) => {
+  const testSingleEndpoint = async (endpoint: Endpoint) => {
     const result = await testEndpoint(endpoint);
     setResults(prev => ({
       ...prev,
@@ -107,7 +109,7 @@ const DebugDashboard = () => {
     }));
   };
 
-  const viewResponseData = (result) => {
+  const viewResponseData = (result: any) => {
     const dataStr = typeof result.data === 'string' 
       ? result.data 
       : JSON.stringify(result.data, null, 2);
