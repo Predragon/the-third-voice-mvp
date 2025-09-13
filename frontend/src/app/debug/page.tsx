@@ -5,8 +5,19 @@ import { Play, CheckCircle, XCircle, Eye, RefreshCw } from 'lucide-react';
 
 type Endpoint = { name: string; path: string };
 
+type EndpointResult = {
+  status: string;
+  statusCode?: number;
+  data?: any;
+  responseTime?: number;
+  url?: string;
+  method?: string;
+  timestamp?: string;
+  error?: string;
+};
+
 const DebugDashboard = () => {
-  const [results, setResults] = useState({});
+  const [results, setResults] = useState<Record<string, EndpointResult>>({});
   const [isTestingAll, setIsTestingAll] = useState(false);
 
   const endpoints: Endpoint[] = [
