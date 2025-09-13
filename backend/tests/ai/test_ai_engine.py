@@ -339,7 +339,7 @@ async def test_process_message():
     )
     
     assert isinstance(response, AIResponse)
-    assert response.explanation == "This appears to be a test message to verify the system's functionality rather than conveying genuine emotional content."
+    assert response.explanation == "The user is testing the functionality of this communication helper tool with a generic message to see how it interprets and responds to basic input."
     assert response.healing_score == 8
     assert response.sentiment == "positive"
     assert len(response.suggested_responses) == 3
