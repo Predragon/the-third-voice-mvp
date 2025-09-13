@@ -5,13 +5,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:cf": "CF_PAGES=1 next-on-pages",
     "start": "next start",
     "test": "jest --watchAll=false --passWithNoTests",
     "lint": "next lint",
-    "type-check": "tsc --noEmit",
-    "preview:cf": "wrangler pages dev .vercel/output/static",
-    "deploy:cf": "wrangler pages deploy .vercel/output/static"
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "autoprefixer": "^10.4.21",
@@ -28,7 +25,6 @@
     "@babel/preset-env": "^7.23.0",
     "@babel/preset-react": "^7.22.0",
     "@babel/preset-typescript": "^7.23.0",
-    "@cloudflare/next-on-pages": "^1.8.0",
     "@eslint/eslintrc": "^3",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
@@ -43,7 +39,6 @@
     "eslint-config-next": "15.5.0",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
-    "typescript": "^5",
-    "wrangler": "^3.0.0"
+    "typescript": "^5"
   }
 }
