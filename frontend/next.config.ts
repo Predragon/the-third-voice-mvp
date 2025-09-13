@@ -2,7 +2,7 @@ import { NextConfig } from 'next';
 import withPWA from 'next-pwa';
 
 const isDev = process.env.NODE_ENV === 'development';
-const isCloudflare = process.env.CF_PAGES;
+const isCloudflare = Boolean(process.env.CF_PAGES);
 
 const nextConfig: NextConfig = {
   // Proxy rewrites - Works on both Vercel and Cloudflare Pages
@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
   
   // Conditional image optimization - optimized on Vercel, unoptimized on Cloudflare
   images: { 
-    unoptimized: isCloudflare || false,
+    unoptimized: isCloudflare,
     domains: ['localhost', 'api.thethirdvoice.ai'],
   },
 
