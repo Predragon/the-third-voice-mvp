@@ -2,9 +2,10 @@ import { NextConfig } from 'next';
 import withPWA from 'next-pwa';
 
 const isDev = process.env.NODE_ENV === 'development';
+const isCloudflare = process.env.CF_PAGES;
 
 const nextConfig: NextConfig = {
-  // Proxy rewrites - Fixed to handle API paths correctly
+  // Proxy rewrites - Works on both Vercel and Cloudflare Pages
   async rewrites() {
     return [
       {
@@ -15,13 +16,14 @@ const nextConfig: NextConfig = {
   },
 
   // Next.js core config
-  trailingSlash: true,
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
+  
+  // Conditional image optimization - optimized on Vercel, unoptimized on Cloudflare
   images: { 
-    unoptimized: true,
-    domains: ['localhost'],
+    unoptimized: isCloudflare || false,
+    domains: ['localhost', 'api.thethirdvoice.ai'],
   },
 
   env: {
@@ -33,10 +35,12 @@ const nextConfig: NextConfig = {
   },
 
   webpack: (config, { isServer }) => {
-    if (process.env.CF_PAGES) {
+    // Disable cache on Cloudflare Pages for stability
+    if (isCloudflare) {
       config.cache = false;
     }
 
+    // Client-side fallbacks for Node.js modules
     if (!isServer) {
       config.resolve = config.resolve || {};
       config.resolve.fallback = {
