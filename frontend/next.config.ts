@@ -5,13 +5,6 @@ const isDev = process.env.NODE_ENV === 'development';
 const isCloudflare = Boolean(process.env.CF_PAGES);
 
 const nextConfig: NextConfig = {
-  // Cloudflare Pages specific configuration
-  ...(isCloudflare && {
-    experimental: {
-      runtime: 'experimental-edge'
-    }
-  }),
-
   // Proxy rewrites - Works on Vercel, handled by API routes on Cloudflare
   async rewrites() {
     // Only use rewrites on Vercel, not on Cloudflare (use API routes instead)
