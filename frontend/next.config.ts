@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
     }
   }),
 
-  // Proxy rewrites - Works on both Vercel and Cloudflare Pages
+  // Proxy rewrites - Works on Vercel, handled by API routes on Cloudflare
   async rewrites() {
     // Only use rewrites on Vercel, not on Cloudflare (use API routes instead)
     if (!isCloudflare) {
