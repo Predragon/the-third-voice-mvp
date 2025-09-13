@@ -4,7 +4,7 @@ import withPWA from 'next-pwa';
 const isDev = process.env.NODE_ENV === 'development';
 
 const nextConfig: NextConfig = {
-  // Proxy rewrites (top-level Next.js config)
+  // Proxy rewrites - Fixed to handle API paths correctly
   async rewrites() {
     return [
       {
