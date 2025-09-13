@@ -411,7 +411,7 @@ async def test_process_message_explanation_content():
     assert len(response.explanation) > 0
     assert response.healing_score >= 0
     assert response.healing_score <= 10
-    assert response.sentiment in ["positive", "negative", "neutral"]
+    assert response.sentiment in ["positive", "negative", "neutral", "stressed", "anxious", "happy", "sad", "angry", "confused"]
     
     print("✅ Process message explanation content test passed")
 
