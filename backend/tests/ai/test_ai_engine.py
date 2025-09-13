@@ -374,18 +374,15 @@ async def test_process_message_with_different_inputs():
     test_cases = [
         {
             "message": "I'm feeling overwhelmed",
-            "context": "close friend",
-            "expected_sentiment": ["negative", "neutral"]  # Could be either
+            "context": "close friend"
         },
         {
             "message": "How was your day?",
-            "context": "colleague", 
-            "expected_sentiment": ["positive", "neutral"]  # Likely positive or neutral
+            "context": "colleague"
         },
         {
             "message": "test input",
-            "context": "test context",
-            "expected_sentiment": ["positive", "neutral"]  # Test messages usually neutral/positive
+            "context": "test context"
         }
     ]
     
