@@ -5,14 +5,25 @@ const isDev = process.env.NODE_ENV === 'development';
 const isCloudflare = Boolean(process.env.CF_PAGES);
 
 const nextConfig: NextConfig = {
+  // Cloudflare Pages specific configuration
+  ...(isCloudflare && {
+    experimental: {
+      runtime: 'experimental-edge'
+    }
+  }),
+
   // Proxy rewrites - Works on both Vercel and Cloudflare Pages
   async rewrites() {
-    return [
-      {
-        source: '/api/proxy/:path*',
-        destination: 'https://api.thethirdvoice.ai/:path*',
-      },
-    ];
+    // Only use rewrites on Vercel, not on Cloudflare (use API routes instead)
+    if (!isCloudflare) {
+      return [
+        {
+          source: '/api/proxy/:path*',
+          destination: 'https://api.thethirdvoice.ai/:path*',
+        },
+      ];
+    }
+    return [];
   },
 
   // Next.js core config
@@ -28,6 +39,7 @@ const nextConfig: NextConfig = {
 
   env: {
     NEXT_PUBLIC_API_URL: 'https://api.thethirdvoice.ai',
+    NEXT_PUBLIC_PLATFORM: isCloudflare ? 'cloudflare' : 'vercel',
   },
 
   eslint: {
@@ -57,7 +69,7 @@ const nextConfig: NextConfig = {
 
 export default withPWA({
   dest: 'public',
-  disable: isDev,
+  disable: isDev || isCloudflare, // Disable PWA on Cloudflare for now
   register: true,
   skipWaiting: true,
   buildExcludes: [/middleware-manifest\.json$/],
