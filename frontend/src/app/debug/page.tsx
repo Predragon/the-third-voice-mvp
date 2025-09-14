@@ -1,248 +1,307 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Play, CheckCircle, XCircle, Eye, RefreshCw } from 'lucide-react';
+import { AlertCircle, CheckCircle, XCircle, Loader, Zap, RefreshCw } from 'lucide-react';
 
-type Endpoint = { name: string; path: string };
+const APIDiagnosticTool = () => {
+  const [diagnostics, setDiagnostics] = useState({});
+  const [isRunning, setIsRunning] = useState(false);
 
-type EndpointResult = {
-  status: string;
-  statusCode?: number;
-  data?: any;
-  responseTime?: number;
-  url?: string;
-  method?: string;
-  timestamp?: string;
-  error?: string;
-};
+  const runFullDiagnostic = async () => {
+    setIsRunning(true);
+    setDiagnostics({});
 
-const DebugDashboard = () => {
-  const [results, setResults] = useState<Record<string, EndpointResult>>({});
-  const [isTestingAll, setIsTestingAll] = useState(false);
-
-  const endpoints: Endpoint[] = [
-    { name: 'Root Endpoint', path: '' },
-    { name: 'Health Check', path: 'api/health/' },
-    { name: 'Database Health', path: 'api/health/database' },
-    { name: 'AI Engine Health', path: 'api/health/ai-engine' },
-    { name: 'System Health', path: 'api/health/system' },
-    { name: 'Readiness Check', path: 'api/health/ready' },
-    { name: 'Liveness Check', path: 'api/health/liveness' },
-    { name: 'Detailed Health', path: 'api/health/detailed' },
-    { name: 'Docs Endpoint', path: 'docs' },
-    { name: 'OpenAPI Endpoint', path: 'openapi.json' },
-    { name: 'Quick Transform', path: 'api/messages/quick-transform' },
-    { name: 'Quick Interpret', path: 'api/messages/quick-interpret' },
-    { name: 'Messages Health', path: 'api/messages/health' },
-    { name: 'Get Contacts', path: 'api/contacts/' },
-    { name: 'Available Contexts', path: 'api/contacts/contexts/available' },
-    { name: 'Feedback Categories', path: 'api/feedback/categories' }
-  ];
-
-  const testEndpoint = async (endpoint: Endpoint) => {
-    const startTime = Date.now();
-    try {
-      const url = `/api/proxy/${endpoint.path}`;
-
-      // Use appropriate method based on endpoint
-      const method = endpoint.path.includes('quick-transform') ||
-                     endpoint.path.includes('quick-interpret') ? 'POST' : 'GET';
-
-      const options = {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        ...(method === 'POST' && {
-          body: JSON.stringify({ 
-            message: "Test message",
-            analysis_depth: "QUICK" 
+    const tests = [
+      {
+        name: 'Direct Backend Connection',
+        test: () => fetch('https://api.thethirdvoice.ai/api/health/', { 
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        })
+      },
+      {
+        name: 'Proxy Connection',
+        test: () => fetch('/api/proxy/api/health/', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        })
+      },
+      {
+        name: 'AI Engine Status',
+        test: () => fetch('/api/proxy/api/health/ai-engine', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        })
+      },
+      {
+        name: 'Database Connection',
+        test: () => fetch('/api/proxy/api/health/database', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        })
+      },
+      {
+        name: 'Quick Transform (Real AI Test)',
+        test: () => fetch('/api/proxy/api/messages/quick-transform', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            message: "I'm testing the AI connection",
+            contact_context: "friend",
+            contact_name: "Test",
+            use_deep_analysis: false
           })
         })
-      };
+      },
+      {
+        name: 'Detailed Health Check',
+        test: () => fetch('/api/proxy/api/health/detailed', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        })
+      }
+    ];
 
-      const response = await fetch(url, options);
-      const responseTime = Date.now() - startTime;
+    for (const { name, test } of tests) {
+      try {
+        const startTime = Date.now();
+        const response = await test();
+        const responseTime = Date.now() - startTime;
+        
+        let data;
+        const contentType = response.headers.get('content-type');
+        
+        if (contentType && contentType.includes('application/json')) {
+          data = await response.json();
+        } else {
+          data = await response.text();
+        }
 
-      let data;
-      const contentType = response.headers.get('content-type');
-
-      if (contentType && contentType.includes('application/json')) {
-        data = await response.json();
-      } else {
-        data = await response.text();
+        setDiagnostics(prev => ({
+          ...prev,
+          [name]: {
+            status: response.ok ? 'success' : 'error',
+            statusCode: response.status,
+            responseTime,
+            data,
+            timestamp: new Date().toISOString()
+          }
+        }));
+      } catch (error) {
+        setDiagnostics(prev => ({
+          ...prev,
+          [name]: {
+            status: 'error',
+            error: error.message,
+            timestamp: new Date().toISOString()
+          }
+        }));
       }
 
-      return {
-        status: response.ok ? 'success' : 'error',
-        statusCode: response.status,
-        data,
-        responseTime,
-        url,
-        method,
-        timestamp: new Date().toLocaleTimeString()
-      };
-    } catch (error: any) {
-      return {
-        status: 'error',
-        error: error.message,
-        responseTime: Date.now() - startTime,
-        url: `/api/proxy/${endpoint.path}`,
-        method: endpoint.path.includes('quick-') ? 'POST' : 'GET',
-        timestamp: new Date().toLocaleTimeString()
-      };
+      // Small delay between tests
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
+
+    setIsRunning(false);
   };
 
-  const testAllEndpoints = async () => {
-    setIsTestingAll(true);
-    setResults({});
+  const analyzeResults = () => {
+    const results = Object.entries(diagnostics);
+    if (results.length === 0) return null;
+
+    let analysis = [];
     
-    for (const endpoint of endpoints) {
-      const result = await testEndpoint(endpoint);
-      setResults(prev => ({
-        ...prev,
-        [endpoint.name]: result
-      }));
-      
-      // Small delay between requests
-      await new Promise(resolve => setTimeout(resolve, 100));
+    // Check for specific patterns
+    const healthCheck = diagnostics['Proxy Connection'];
+    const aiEngine = diagnostics['AI Engine Status'];
+    const aiTest = diagnostics['Quick Transform (Real AI Test)'];
+    const directBackend = diagnostics['Direct Backend Connection'];
+
+    if (directBackend && directBackend.status === 'error') {
+      analysis.push({
+        type: 'critical',
+        message: 'Backend server appears to be down or unreachable directly'
+      });
     }
-    
-    setIsTestingAll(false);
+
+    if (healthCheck && healthCheck.status === 'error') {
+      analysis.push({
+        type: 'critical',
+        message: 'Main health endpoint failing - core API issue'
+      });
+    }
+
+    if (aiEngine && aiEngine.status === 'error') {
+      analysis.push({
+        type: 'warning',
+        message: 'AI Engine health check failing - may be using fallback responses'
+      });
+    }
+
+    if (aiTest && aiTest.status === 'success' && aiTest.data) {
+      const response = typeof aiTest.data === 'string' ? aiTest.data : JSON.stringify(aiTest.data);
+      if (response.includes('Network Fallback') || response.includes('technical difficulties')) {
+        analysis.push({
+          type: 'warning',
+          message: 'AI endpoint returns fallback response - AI engine not properly connected'
+        });
+      } else if (response.includes('suggested_responses') || response.includes('analysis')) {
+        analysis.push({
+          type: 'success',
+          message: 'AI engine appears to be working properly'
+        });
+      }
+    }
+
+    return analysis;
   };
 
-  const testSingleEndpoint = async (endpoint: Endpoint) => {
-    const result = await testEndpoint(endpoint);
-    setResults(prev => ({
-      ...prev,
-      [endpoint.name]: result
-    }));
+  const getStatusIcon = (status) => {
+    if (status === 'success') return <CheckCircle className="w-5 h-5 text-green-500" />;
+    if (status === 'error') return <XCircle className="w-5 h-5 text-red-500" />;
+    return <AlertCircle className="w-5 h-5 text-yellow-500" />;
   };
 
-  const viewResponseData = (result: any) => {
-    const dataStr = typeof result.data === 'string' 
-      ? result.data 
-      : JSON.stringify(result.data, null, 2);
-    
-    alert(`Response Data:\n\nURL: ${result.url}\nMethod: ${result.method}\nStatus: ${result.statusCode}\nResponse Time: ${result.responseTime}ms\n\nData:\n${dataStr}`);
-  };
+  const analysis = analyzeResults();
 
   return (
-    <div className="max-w-6xl mx-auto p-6 bg-gray-50 min-h-screen">
+    <div className="max-w-4xl mx-auto p-6 bg-gray-50 min-h-screen">
       <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
         <h1 className="text-2xl font-bold text-gray-800 mb-4 flex items-center">
-          🔍 Debug Dashboard
+          <Zap className="w-6 h-6 mr-2 text-blue-500" />
+          API Connection Diagnostic Tool
         </h1>
         
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <h3 className="font-semibold text-blue-800 mb-2">API URL: /api/proxy</h3>
-          <p className="text-blue-700 text-sm mb-2">Client-side check via proxy</p>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <h3 className="font-semibold text-yellow-800 mb-2">🔍 Deep Diagnostic</h3>
+          <p className="text-yellow-700 text-sm">
+            This tool will test both direct backend connection and proxy routing to identify exactly where the communication is failing.
+          </p>
         </div>
 
         <button
-          onClick={testAllEndpoints}
-          disabled={isTestingAll}
-          className="bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white px-6 py-3 rounded-lg font-medium flex items-center space-x-2 mb-6"
+          onClick={runFullDiagnostic}
+          disabled={isRunning}
+          className="bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white px-6 py-3 rounded-lg font-medium flex items-center space-x-2"
         >
-          {isTestingAll ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5" />}
-          <span>{isTestingAll ? 'Testing...' : 'Test All Endpoints'}</span>
+          {isRunning ? <Loader className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5" />}
+          <span>{isRunning ? 'Running Diagnostics...' : 'Run Full Diagnostic'}</span>
         </button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {endpoints.map((endpoint) => {
-          const result = results[endpoint.name];
-          return (
-            <div key={endpoint.name} className="bg-white rounded-lg shadow-md p-4">
+      {analysis && analysis.length > 0 && (
+        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">🎯 Analysis & Recommendations</h2>
+          <div className="space-y-3">
+            {analysis.map((item, index) => (
+              <div 
+                key={index}
+                className={`p-3 rounded-lg border ${
+                  item.type === 'critical' ? 'bg-red-50 border-red-200' :
+                  item.type === 'warning' ? 'bg-yellow-50 border-yellow-200' :
+                  'bg-green-50 border-green-200'
+                }`}
+              >
+                <div className={`font-medium ${
+                  item.type === 'critical' ? 'text-red-800' :
+                  item.type === 'warning' ? 'text-yellow-800' :
+                  'text-green-800'
+                }`}>
+                  {item.type === 'critical' ? '🚨' : item.type === 'warning' ? '⚠️' : '✅'} {item.message}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {Object.keys(diagnostics).length > 0 && (
+        <div className="grid gap-4">
+          {Object.entries(diagnostics).map(([name, result]) => (
+            <div key={name} className="bg-white rounded-lg shadow-md p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-gray-800 text-sm">{endpoint.name}</h3>
-                {result && (
-                  result.status === 'success' ? 
-                    <CheckCircle className="w-5 h-5 text-green-500" /> : 
-                    <XCircle className="w-5 h-5 text-red-500" />
-                )}
+                <h3 className="font-semibold text-gray-800">{name}</h3>
+                {getStatusIcon(result.status)}
               </div>
               
-              {result && (
-                <div className="text-xs text-gray-600 mb-3">
-                  <div className={`font-medium ${result.status === 'success' ? 'text-green-600' : 'text-red-600'}`}>
-                    {result.status === 'success' ? '✅ Connection successful!' : '❌ Connection failed!'}
-                  </div>
-                  <div className="mt-1">
-                    {result.statusCode && <span className="mr-2">{result.statusCode}</span>}
-                    <span>{result.timestamp}</span>
-                  </div>
-                  <div className="mt-1">URL: /api/proxy/{endpoint.path}</div>
-                  {result.responseTime && (
-                    <div className="mt-1">Response Time: {result.responseTime}ms</div>
-                  )}
-                  {result.error && (
-                    <div className="mt-1 text-red-600">Error: {result.error}</div>
-                  )}
+              <div className="text-sm text-gray-600 space-y-1">
+                <div className="flex justify-between">
+                  <span>Status:</span>
+                  <span className={`font-medium ${
+                    result.status === 'success' ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {result.statusCode || result.status}
+                  </span>
                 </div>
-              )}
-
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => testSingleEndpoint(endpoint)}
-                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded text-sm font-medium"
-                >
-                  Test
-                </button>
-                {result && result.data && (
-                  <button
-                    onClick={() => viewResponseData(result)}
-                    className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-2 rounded text-sm font-medium flex items-center"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </button>
+                
+                {result.responseTime && (
+                  <div className="flex justify-between">
+                    <span>Response Time:</span>
+                    <span>{result.responseTime}ms</span>
+                  </div>
+                )}
+                
+                {result.error && (
+                  <div className="text-red-600 mt-2">
+                    <strong>Error:</strong> {result.error}
+                  </div>
+                )}
+                
+                {result.data && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-blue-600 hover:text-blue-800">
+                      View Response Data
+                    </summary>
+                    <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto max-h-32">
+                      {typeof result.data === 'string' 
+                        ? result.data 
+                        : JSON.stringify(result.data, null, 2)
+                      }
+                    </pre>
+                  </details>
                 )}
               </div>
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow-lg p-6 mt-6">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">🔧 Proxy Configuration</h2>
-        <p className="text-gray-600 mb-4">
-          Requests are proxied through /api/proxy to https://api.thethirdvoice.ai
-        </p>
-        <p className="text-sm text-gray-500 mb-4">
-          Ensure backend is running on Raspberry Pi and Cloudflare Tunnel is active.
-        </p>
-        
-        <div className="space-x-4">
-          <span className="text-sm font-medium text-gray-700">Manual Test Links:</span>
-          <a 
-            href="https://api.thethirdvoice.ai/" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-800 text-sm underline"
-          >
-            Root API
-          </a>
-          <a 
-            href="https://api.thethirdvoice.ai/docs" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-800 text-sm underline"
-          >
-            API Docs
-          </a>
-          <a 
-            href="https://api.thethirdvoice.ai/api/health/" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-800 text-sm underline"
-          >
-            Health Check
-          </a>
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">🔧 Troubleshooting Steps</h2>
+        <div className="space-y-4 text-sm">
+          <div>
+            <h4 className="font-medium text-gray-700 mb-2">1. If Direct Backend Connection Fails:</h4>
+            <ul className="list-disc list-inside text-gray-600 ml-4 space-y-1">
+              <li>Check if Raspberry Pi is running</li>
+              <li>Verify Cloudflare Tunnel is active</li>
+              <li>Test: <code className="bg-gray-100 px-1 rounded">curl https://api.thethirdvoice.ai/api/health/</code></li>
+            </ul>
+          </div>
+          
+          <div>
+            <h4 className="font-medium text-gray-700 mb-2">2. If Proxy Connection Fails:</h4>
+            <ul className="list-disc list-inside text-gray-600 ml-4 space-y-1">
+              <li>Check Next.js API route configuration</li>
+              <li>Verify proxy route at <code className="bg-gray-100 px-1 rounded">/api/proxy/[...path]/route.ts</code></li>
+              <li>Check CORS settings</li>
+            </ul>
+          </div>
+          
+          <div>
+            <h4 className="font-medium text-gray-700 mb-2">3. If AI Engine Fails:</h4>
+            <ul className="list-disc list-inside text-gray-600 ml-4 space-y-1">
+              <li>Check OpenAI API key configuration</li>
+              <li>Verify AI service initialization in backend</li>
+              <li>Check backend logs for AI engine errors</li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-export default DebugDashboard;
+export default APIDiagnosticTool;
