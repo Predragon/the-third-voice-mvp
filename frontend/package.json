@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:cf": "next build && next-on-pages",
+    "build:cf": "next-on-pages",
     "start": "next start",
     "test": "jest --watchAll=false --passWithNoTests",
     "lint": "next lint",
