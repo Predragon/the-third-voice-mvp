@@ -3,8 +3,22 @@
 import React, { useState } from 'react';
 import { AlertCircle, CheckCircle, XCircle, Loader, Zap, RefreshCw } from 'lucide-react';
 
+interface DiagnosticResult {
+  status: 'success' | 'error';
+  statusCode?: number;
+  responseTime?: number;
+  data?: any;
+  error?: string;
+  timestamp: string;
+}
+
+interface AnalysisItem {
+  type: 'critical' | 'warning' | 'success';
+  message: string;
+}
+
 const APIDiagnosticTool = () => {
-  const [diagnostics, setDiagnostics] = useState({});
+  const [diagnostics, setDiagnostics] = useState<Record<string, DiagnosticResult>>({});
   const [isRunning, setIsRunning] = useState(false);
 
   const runFullDiagnostic = async () => {
@@ -108,11 +122,11 @@ const APIDiagnosticTool = () => {
     setIsRunning(false);
   };
 
-  const analyzeResults = () => {
+  const analyzeResults = (): AnalysisItem[] | null => {
     const results = Object.entries(diagnostics);
     if (results.length === 0) return null;
 
-    let analysis = [];
+    const analysis: AnalysisItem[] = [];
     
     // Check for specific patterns
     const healthCheck = diagnostics['Proxy Connection'];
@@ -120,28 +134,28 @@ const APIDiagnosticTool = () => {
     const aiTest = diagnostics['Quick Transform (Real AI Test)'];
     const directBackend = diagnostics['Direct Backend Connection'];
 
-    if (directBackend && directBackend.status === 'error') {
+    if (directBackend?.status === 'error') {
       analysis.push({
         type: 'critical',
         message: 'Backend server appears to be down or unreachable directly'
       });
     }
 
-    if (healthCheck && healthCheck.status === 'error') {
+    if (healthCheck?.status === 'error') {
       analysis.push({
         type: 'critical',
         message: 'Main health endpoint failing - core API issue'
       });
     }
 
-    if (aiEngine && aiEngine.status === 'error') {
+    if (aiEngine?.status === 'error') {
       analysis.push({
         type: 'warning',
         message: 'AI Engine health check failing - may be using fallback responses'
       });
     }
 
-    if (aiTest && aiTest.status === 'success' && aiTest.data) {
+    if (aiTest?.status === 'success' && aiTest.data) {
       const response = typeof aiTest.data === 'string' ? aiTest.data : JSON.stringify(aiTest.data);
       if (response.includes('Network Fallback') || response.includes('technical difficulties')) {
         analysis.push({
@@ -156,10 +170,10 @@ const APIDiagnosticTool = () => {
       }
     }
 
-    return analysis;
+    return analysis.length > 0 ? analysis : null;
   };
 
-  const getStatusIcon = (status) => {
+  const getStatusIcon = (status: string) => {
     if (status === 'success') return <CheckCircle className="w-5 h-5 text-green-500" />;
     if (status === 'error') return <XCircle className="w-5 h-5 text-red-500" />;
     return <AlertCircle className="w-5 h-5 text-yellow-500" />;
