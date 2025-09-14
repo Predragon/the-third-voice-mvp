@@ -508,8 +508,7 @@ export default function TheThirdVoice() {
       </div>
     </div>
   );
-}
-                  <h3 className="font-semibold text-gray-900 mb-3 sm:mb-4 flex items-start sm:items-center flex-col sm:flex-row gap-2">
+} flex items-start sm:items-center flex-col sm:flex-row gap-2">
                     <div className="flex items-center">
                       {result.analysis_depth === 'deep' ? (
                         <Brain className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-purple-600" />
@@ -707,3 +706,4 @@ export default function TheThirdVoice() {
               /* Transform Results */
               <div className="space-y-3 sm:space-y-4">
                 <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
+                  <h3 className="font-semibold text-gray-900 mb-3 sm:mb-4
