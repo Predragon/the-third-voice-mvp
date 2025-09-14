@@ -5,7 +5,6 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build:cf": "next build && next-on-pages",
     "start": "next start",
     "test": "jest --watchAll=false --passWithNoTests",
     "lint": "next lint",
@@ -41,9 +40,5 @@
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "typescript": "^5"
-  },
-  "optionalDependencies": {
-    "@cloudflare/next-on-pages": "^1.8.0",
-    "wrangler": "^3.0.0"
   }
 }
