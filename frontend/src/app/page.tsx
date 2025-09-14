@@ -3,9 +3,8 @@
 import React, { useState } from 'react';
 import { Copy, Heart, Lightbulb, ChevronDown, Brain } from 'lucide-react';
 
-const API_BASE = process.env.NODE_ENV === 'development' 
-  ? 'http://localhost:8000' 
-  : 'https://api.thethirdvoice.ai';
+// Updated to always use proxy instead of direct backend calls
+const API_BASE = '/api/proxy';
 
 interface ApiResult {
   explanation?: string;
@@ -62,7 +61,8 @@ export default function TheThirdVoice() {
         mode: mode
       };
 
-      console.log('Sending request:', requestBody);
+      console.log('Sending request to proxy:', `${API_BASE}${endpoint}`);
+      console.log('Request body:', requestBody);
 
       const response = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
@@ -315,8 +315,7 @@ export default function TheThirdVoice() {
                   <div className="flex items-center">
                     <Brain className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 mr-2" />
                     <span className="text-sm sm:text-base font-medium text-purple-900">
-                      Deep Analysis
-                    </span>
+                      Deep Analysis</span>
                   </div>
                   <button
                     onClick={() => setUseDeepAnalysis(!useDeepAnalysis)}
