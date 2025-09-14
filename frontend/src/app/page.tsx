@@ -3,9 +3,8 @@
 import React, { useState } from 'react';
 import { Copy, Heart, Lightbulb, ChevronDown, Brain } from 'lucide-react';
 
-const API_BASE = process.env.NODE_ENV === 'development' 
-  ? 'http://localhost:8000' 
-  : 'https://api.thethirdvoice.ai';
+// Updated to always use proxy instead of direct backend calls
+const API_BASE = '/api/proxy';
 
 interface ApiResult {
   explanation?: string;
@@ -62,7 +61,8 @@ export default function TheThirdVoice() {
         mode: mode
       };
 
-      console.log('Sending request:', requestBody);
+      console.log('Sending request to proxy:', `${API_BASE}${endpoint}`);
+      console.log('Request body:', requestBody);
 
       const response = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
@@ -422,6 +422,95 @@ export default function TheThirdVoice() {
                 <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
                   <h3 className="font-semibold text-gray-900 mb-3 sm:mb-4 flex items-start sm:items-center flex-col sm:flex-row gap-2">
                     <div className="flex items-center">
+                      <Heart className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-green-600" />
+                      <span className="text-sm sm:text-base">Transformed Message</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1 sm:gap-2 sm:ml-auto">
+                      {result.healing_score && (
+                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                          Healing: {result.healing_score}/10
+                        </span>
+                      )}
+                      {result.sentiment && (
+                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                          Sentiment: {result.sentiment}
+                        </span>
+                      )}
+                      {result.emotional_state && (
+                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                          Emotion: {result.emotional_state}
+                        </span>
+                      )}
+                      {result.model_used && (
+                        <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
+                          {result.model_used}
+                        </span>
+                      )}
+                    </div>
+                  </h3>
+                  
+                  <div className="bg-green-50 p-3 sm:p-4 rounded-lg mb-3 sm:mb-4">
+                    <p className="text-gray-800 italic text-sm sm:text-lg leading-relaxed">
+                      &ldquo;{result.transformed_message}&rdquo;
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2 mb-3 sm:mb-4">
+                    <button
+                      onClick={() => copyToClipboard(result.transformed_message || '')}
+                      className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 active:bg-green-800 transition-colors flex items-center text-xs sm:text-sm"
+                      style={{ minHeight: '44px', minWidth: '44px' }}
+                    >
+                      <Copy className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                      Copy
+                    </button>
+                  </div>
+                  
+                  {result.explanation && (
+                    <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
+                      <p className="text-xs sm:text-sm text-gray-700">
+                        <strong>Why this works:</strong> {result.explanation}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Alternative suggestions */}
+                {result.alternatives && result.alternatives.length > 0 && (
+                  <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
+                    <h3 className="font-semibold text-gray-900 mb-3 sm:mb-4 text-sm sm:text-base">
+                      Alternative Options
+                    </h3>
+                    
+                    <div className="space-y-2 sm:space-y-3">
+                      {result.alternatives.map((alternative: string, index: number) => (
+                        <div key={index} className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+                          <p className="text-gray-800 italic mb-2 sm:mb-3 text-sm sm:text-base leading-relaxed">
+                            &ldquo;{alternative}&rdquo;
+                          </p>
+                          <button
+                            onClick={() => copyToClipboard(alternative)}
+                            className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 active:bg-green-800 transition-colors flex items-center text-xs sm:text-sm"
+                            style={{ minHeight: '44px', minWidth: '44px' }}
+                          >
+                            <Copy className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                            Copy
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+                  <h3 className="font-semibold text-gray-900 mb-3 sm:mb-4 flex items-start sm:items-center flex-col sm:flex-row gap-2">
+                    <div className="flex items-center">
                       {result.analysis_depth === 'deep' ? (
                         <Brain className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-purple-600" />
                       ) : (
@@ -618,92 +707,3 @@ export default function TheThirdVoice() {
               /* Transform Results */
               <div className="space-y-3 sm:space-y-4">
                 <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
-                  <h3 className="font-semibold text-gray-900 mb-3 sm:mb-4 flex items-start sm:items-center flex-col sm:flex-row gap-2">
-                    <div className="flex items-center">
-                      <Heart className="w-4 h-4 sm:w-5 sm:h-5 mr-2 text-green-600" />
-                      <span className="text-sm sm:text-base">Transformed Message</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1 sm:gap-2 sm:ml-auto">
-                      {result.healing_score && (
-                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                          Healing: {result.healing_score}/10
-                        </span>
-                      )}
-                      {result.sentiment && (
-                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                          Sentiment: {result.sentiment}
-                        </span>
-                      )}
-                      {result.emotional_state && (
-                        <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                          Emotion: {result.emotional_state}
-                        </span>
-                      )}
-                      {result.model_used && (
-                        <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
-                          {result.model_used}
-                        </span>
-                      )}
-                    </div>
-                  </h3>
-                  
-                  <div className="bg-green-50 p-3 sm:p-4 rounded-lg mb-3 sm:mb-4">
-                    <p className="text-gray-800 italic text-sm sm:text-lg leading-relaxed">
-                      &ldquo;{result.transformed_message}&rdquo;
-                    </p>
-                  </div>
-
-                  <div className="flex gap-2 mb-3 sm:mb-4">
-                    <button
-                      onClick={() => copyToClipboard(result.transformed_message || '')}
-                      className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 active:bg-green-800 transition-colors flex items-center text-xs sm:text-sm"
-                      style={{ minHeight: '44px', minWidth: '44px' }}
-                    >
-                      <Copy className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                      Copy
-                    </button>
-                  </div>
-                  
-                  {result.explanation && (
-                    <div className="p-3 sm:p-4 bg-gray-50 rounded-lg">
-                      <p className="text-xs sm:text-sm text-gray-700">
-                        <strong>Why this works:</strong> {result.explanation}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Alternative suggestions */}
-                {result.alternatives && result.alternatives.length > 0 && (
-                  <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6">
-                    <h3 className="font-semibold text-gray-900 mb-3 sm:mb-4 text-sm sm:text-base">
-                      Alternative Options
-                    </h3>
-                    
-                    <div className="space-y-2 sm:space-y-3">
-                      {result.alternatives.map((alternative: string, index: number) => (
-                        <div key={index} className="bg-gray-50 p-3 sm:p-4 rounded-lg">
-                          <p className="text-gray-800 italic mb-2 sm:mb-3 text-sm sm:text-base leading-relaxed">
-                            &ldquo;{alternative}&rdquo;
-                          </p>
-                          <button
-                            onClick={() => copyToClipboard(alternative)}
-                            className="bg-green-600 text-white px-3 py-2 rounded-lg hover:bg-green-700 active:bg-green-800 transition-colors flex items-center text-xs sm:text-sm"
-                            style={{ minHeight: '44px', minWidth: '44px' }}
-                          >
-                            <Copy className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-                            Copy
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
