@@ -1,50 +1,104 @@
-{
-  "name": "thirdvoice-frontend",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "build:cf": "CF_PAGES=1 next build && CF_PAGES=1 next-on-pages",
-    "build:vercel": "next build",
-    "start": "next start",
-    "test": "jest --watchAll=false --passWithNoTests",
-    "lint": "next lint",
-    "type-check": "tsc --noEmit"
+import { NextConfig } from 'next';
+import withPWA from 'next-pwa';
+
+const isDev = process.env.NODE_ENV === 'development';
+const isCloudflare = Boolean(process.env.CF_PAGES);
+
+const nextConfig: NextConfig = {
+  // Proxy rewrites - Works on Vercel, handled by API routes on Cloudflare
+  async rewrites() {
+    // Only use rewrites on Vercel, not on Cloudflare (use API routes instead)
+    if (!isCloudflare) {
+      return [
+        {
+          source: '/api/proxy/:path*',
+          destination: 'https://api.thethirdvoice.ai/:path*',
+        },
+      ];
+    }
+    return [];
   },
-  "dependencies": {
-    "autoprefixer": "^10.4.21",
-    "lucide-react": "^0.541.0",
-    "next": "15.5.0",
-    "next-pwa": "^5.6.0",
-    "postcss": "^8.5.6",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "tailwindcss": "^3.4.17"
+
+  // Next.js core config
+  reactStrictMode: true,
+  poweredByHeader: false,
+  compress: true,
+  
+  // Conditional image optimization - optimized on Vercel, unoptimized on Cloudflare
+  images: { 
+    unoptimized: isCloudflare,
+    domains: ['localhost', 'api.thethirdvoice.ai'],
   },
-  "devDependencies": {
-    "@babel/core": "^7.23.0",
-    "@babel/preset-env": "^7.23.0",
-    "@babel/preset-react": "^7.22.0",
-    "@babel/preset-typescript": "^7.23.0",
-    "@eslint/eslintrc": "^3",
-    "@testing-library/jest-dom": "^5.17.0",
-    "@testing-library/react": "^13.4.0",
-    "@testing-library/user-event": "^14.5.2",
-    "@types/jest": "^29.5.12",
-    "@types/next-pwa": "^5.6.9",
-    "@types/node": "^20",
-    "@types/react": "^18",
-    "@types/react-dom": "^18.2.7",
-    "babel-jest": "^29.7.0",
-    "eslint": "^9",
-    "eslint-config-next": "15.5.0",
-    "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.7.0",
-    "typescript": "^5"
+
+  env: {
+    NEXT_PUBLIC_API_URL: 'https://api.thethirdvoice.ai',
+    NEXT_PUBLIC_PLATFORM: isCloudflare ? 'cloudflare' : 'vercel',
   },
-  "optionalDependencies": {
-    "@cloudflare/next-on-pages": "^1.8.0",
-    "wrangler": "^3.0.0"
-  }
-}
+
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+
+  webpack: (config, { isServer }) => {
+    // Disable cache on Cloudflare Pages for stability
+    if (isCloudflare) {
+      config.cache = false;
+    }
+
+    // Client-side fallbacks for Node.js modules
+    if (!isServer) {
+      config.resolve = config.resolve || {};
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+      };
+    }
+
+    return config;
+  },
+};
+
+export default withPWA({
+  dest: 'public',
+  disable: isDev || isCloudflare, // Disable PWA on Cloudflare for now
+  register: true,
+  skipWaiting: true,
+  buildExcludes: [/middleware-manifest\.json$/],
+  runtimeCaching: [
+    {
+      urlPattern: /^https?.*/,
+      handler: 'NetworkFirst',
+      options: {
+        cacheName: 'offlineCache',
+        expiration: {
+          maxEntries: 200,
+          maxAgeSeconds: 24 * 60 * 60, // 24 hours
+        },
+      },
+    },
+    {
+      urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'images',
+        expiration: {
+          maxEntries: 100,
+          maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+        },
+      },
+    },
+    {
+      urlPattern: /\.(?:js|css|woff2?|ttf|eot)$/,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'static-resources',
+        expiration: {
+          maxEntries: 100,
+          maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+        },
+      },
+    },
+  ],
+})(nextConfig);
