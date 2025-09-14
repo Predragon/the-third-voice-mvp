@@ -41,6 +41,13 @@ const APIDiagnosticTool = () => {
         })
       },
       {
+        name: 'Root Endpoint',
+        test: () => fetch('/api/proxy/', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        })
+      },
+      {
         name: 'AI Engine Status',
         test: () => fetch('/api/proxy/api/health/ai-engine', {
           method: 'GET',
@@ -55,7 +62,21 @@ const APIDiagnosticTool = () => {
         })
       },
       {
-        name: 'Quick Transform (Real AI Test)',
+        name: 'System Health',
+        test: () => fetch('/api/proxy/api/health/system', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        })
+      },
+      {
+        name: 'Readiness Check',
+        test: () => fetch('/api/proxy/api/health/ready', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        })
+      },
+      {
+        name: 'Quick Transform (AI Test)',
         test: () => fetch('/api/proxy/api/messages/quick-transform', {
           method: 'POST',
           headers: { 
@@ -71,8 +92,59 @@ const APIDiagnosticTool = () => {
         })
       },
       {
+        name: 'Quick Interpret (AI Test)',
+        test: () => fetch('/api/proxy/api/messages/quick-interpret', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            message: "Thanks but I'm busy right now",
+            contact_context: "friend",
+            contact_name: "Test",
+            use_deep_analysis: false
+          })
+        })
+      },
+      {
+        name: 'Messages Health',
+        test: () => fetch('/api/proxy/api/messages/health', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        })
+      },
+      {
+        name: 'Get Contacts',
+        test: () => fetch('/api/proxy/api/contacts/', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        })
+      },
+      {
+        name: 'Available Contexts',
+        test: () => fetch('/api/proxy/api/contacts/contexts/available', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        })
+      },
+      {
+        name: 'Feedback Categories',
+        test: () => fetch('/api/proxy/api/feedback/categories', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        })
+      },
+      {
         name: 'Detailed Health Check',
         test: () => fetch('/api/proxy/api/health/detailed', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        })
+      },
+      {
+        name: 'OpenAPI Docs',
+        test: () => fetch('/api/proxy/openapi.json', {
           method: 'GET',
           headers: { 'Accept': 'application/json' }
         })
@@ -131,20 +203,22 @@ const APIDiagnosticTool = () => {
     // Check for specific patterns
     const healthCheck = diagnostics['Proxy Connection'];
     const aiEngine = diagnostics['AI Engine Status'];
-    const aiTest = diagnostics['Quick Transform (Real AI Test)'];
+    const aiTransform = diagnostics['Quick Transform (AI Test)'];
+    const aiInterpret = diagnostics['Quick Interpret (AI Test)'];
     const directBackend = diagnostics['Direct Backend Connection'];
+    const contacts = diagnostics['Get Contacts'];
 
     if (directBackend?.status === 'error') {
       analysis.push({
-        type: 'critical',
-        message: 'Backend server appears to be down or unreachable directly'
+        type: 'warning',
+        message: 'Direct backend connection blocked (expected - CORS protection working)'
       });
     }
 
     if (healthCheck?.status === 'error') {
       analysis.push({
         type: 'critical',
-        message: 'Main health endpoint failing - core API issue'
+        message: 'Main health endpoint failing through proxy - check trailing slash handling'
       });
     }
 
@@ -155,19 +229,40 @@ const APIDiagnosticTool = () => {
       });
     }
 
-    if (aiTest?.status === 'success' && aiTest.data) {
-      const response = typeof aiTest.data === 'string' ? aiTest.data : JSON.stringify(aiTest.data);
-      if (response.includes('Network Fallback') || response.includes('technical difficulties')) {
-        analysis.push({
-          type: 'warning',
-          message: 'AI endpoint returns fallback response - AI engine not properly connected'
-        });
-      } else if (response.includes('suggested_responses') || response.includes('analysis')) {
-        analysis.push({
-          type: 'success',
-          message: 'AI engine appears to be working properly'
-        });
+    // Check AI functionality
+    const aiWorking = [];
+    if (aiTransform?.status === 'success' && aiTransform.data) {
+      const response = typeof aiTransform.data === 'string' ? aiTransform.data : JSON.stringify(aiTransform.data);
+      if (response.includes('transformed_message') && response.includes('healing_score')) {
+        aiWorking.push('Transform');
       }
+    }
+    
+    if (aiInterpret?.status === 'success' && aiInterpret.data) {
+      const response = typeof aiInterpret.data === 'string' ? aiInterpret.data : JSON.stringify(aiInterpret.data);
+      if (response.includes('suggested_responses') || response.includes('deeper_feelings')) {
+        aiWorking.push('Interpret');
+      }
+    }
+
+    if (aiWorking.length > 0) {
+      analysis.push({
+        type: 'success',
+        message: `AI engine working properly - ${aiWorking.join(' & ')} endpoints functional`
+      });
+    } else if (aiTransform?.status === 'success' || aiInterpret?.status === 'success') {
+      analysis.push({
+        type: 'warning',
+        message: 'AI endpoints respond but may be returning fallback responses'
+      });
+    }
+
+    // Check contacts endpoint
+    if (contacts?.status === 'error') {
+      analysis.push({
+        type: 'warning',
+        message: 'Contacts endpoint failing - authentication may be required'
+      });
     }
 
     return analysis.length > 0 ? analysis : null;
