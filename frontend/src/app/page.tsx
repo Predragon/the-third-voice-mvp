@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Copy, Heart, Lightbulb, ChevronDown, Brain } from 'lucide-react';
 
-// Updated to always use proxy instead of direct backend calls
 const API_BASE = '/api/proxy';
 
 interface ApiResult {
@@ -24,6 +23,21 @@ interface ApiResult {
 }
 
 export default function TheThirdVoice() {
+  // PWA Service Worker Registration
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(registration => {
+            console.log('Service Worker registered successfully:', registration);
+          })
+          .catch(error => {
+            console.error('Service Worker registration failed:', error);
+          });
+      });
+    }
+  }, []); // The empty dependency array ensures this runs only once
+
   const [step, setStep] = useState(1); // 1: context, 2: mode, 3: input, 4: results
   const [context, setContext] = useState('coparenting');
   const [mode, setMode] = useState(''); // 'analyze' or 'transform'
