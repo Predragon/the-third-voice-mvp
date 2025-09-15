@@ -18,13 +18,13 @@ export const metadata: Metadata = {
   description: "Your AI companion for emotionally intelligent communication",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   // Get the host from the headers to build a dynamic URL
-  const headersList = headers();
+  const headersList = await headers();
   const host = headersList.get('host');
   const dynamicUrl = `https://${host}`;
 
