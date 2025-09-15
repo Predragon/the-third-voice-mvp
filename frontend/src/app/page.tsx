@@ -22,7 +22,6 @@ interface ApiResult {
   alternatives?: string[];
 }
 
-// Add this code snippet within your TheThirdVoice component
 export default function TheThirdVoice() {
   // PWA Service Worker Registration
   useEffect(() => {
