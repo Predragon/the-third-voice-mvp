@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useState } from 'react';
-import { AlertCircle, CheckCircle, XCircle, Loader, Zap, RefreshCw } from 'lucide-react';
+import { AlertCircle, CheckCircle, XCircle, Loader, Zap } from 'lucide-react';
 
 interface DiagnosticResult {
   status: 'success' | 'error';
   statusCode?: number;
   responseTime?: number;
-  data?: any;
+  data?: string | Record<string, unknown>;
   error?: string;
   timestamp: string;
 }
@@ -187,7 +187,6 @@ const APIDiagnosticTool = () => {
         }));
       }
 
-      // Small delay between tests
       await new Promise(resolve => setTimeout(resolve, 200));
     }
 
@@ -200,7 +199,6 @@ const APIDiagnosticTool = () => {
 
     const analysis: AnalysisItem[] = [];
     
-    // Check for specific patterns
     const healthCheck = diagnostics['Proxy Connection'];
     const aiEngine = diagnostics['AI Engine Status'];
     const aiTransform = diagnostics['Quick Transform (AI Test)'];
@@ -229,7 +227,6 @@ const APIDiagnosticTool = () => {
       });
     }
 
-    // Check AI functionality
     const aiWorking = [];
     if (aiTransform?.status === 'success' && aiTransform.data) {
       const response = typeof aiTransform.data === 'string' ? aiTransform.data : JSON.stringify(aiTransform.data);
@@ -257,7 +254,6 @@ const APIDiagnosticTool = () => {
       });
     }
 
-    // Check contacts endpoint
     if (contacts?.status === 'error') {
       analysis.push({
         type: 'warning',
