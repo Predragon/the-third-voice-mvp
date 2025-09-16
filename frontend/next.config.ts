@@ -5,34 +5,25 @@ const isDev = process.env.NODE_ENV === 'development';
 const isCloudflare = Boolean(process.env.CF_PAGES);
 
 const nextConfig: NextConfig = {
-  // Proxy rewrites - Works on Vercel, handled by API routes on Cloudflare
   async rewrites() {
-    // Only use rewrites on Vercel, not on Cloudflare (use API routes instead)
     if (!isCloudflare) {
       return [
         {
           source: '/api/proxy/:path*',
-          destination: 'https://api.thethirdvoice.ai/:path*',
+          destination: `${process.env.NEXT_PUBLIC_API_URL}/:path*`,
         },
       ];
     }
     return [];
   },
 
-  // Next.js core config
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
-  
-  // Conditional image optimization - optimized on Vercel, unoptimized on Cloudflare
-  images: { 
+
+  images: {
     unoptimized: isCloudflare,
     domains: ['localhost', 'api.thethirdvoice.ai'],
-  },
-
-  env: {
-    NEXT_PUBLIC_API_URL: 'https://api.thethirdvoice.ai',
-    NEXT_PUBLIC_PLATFORM: isCloudflare ? 'cloudflare' : 'vercel',
   },
 
   eslint: {
@@ -40,12 +31,9 @@ const nextConfig: NextConfig = {
   },
 
   webpack: (config, { isServer }) => {
-    // Disable cache on Cloudflare Pages for stability
     if (isCloudflare) {
       config.cache = false;
     }
-
-    // Client-side fallbacks for Node.js modules
     if (!isServer) {
       config.resolve = config.resolve || {};
       config.resolve.fallback = {
@@ -55,14 +43,13 @@ const nextConfig: NextConfig = {
         tls: false,
       };
     }
-
     return config;
   },
 };
 
 export default withPWA({
   dest: 'public',
-  disable: isDev || isCloudflare, // Disable PWA on Cloudflare for now
+  disable: isDev || isCloudflare,
   register: true,
   skipWaiting: true,
   buildExcludes: [/middleware-manifest\.json$/],
@@ -74,7 +61,7 @@ export default withPWA({
         cacheName: 'offlineCache',
         expiration: {
           maxEntries: 200,
-          maxAgeSeconds: 24 * 60 * 60, // 24 hours
+          maxAgeSeconds: 24 * 60 * 60,
         },
       },
     },
@@ -85,7 +72,7 @@ export default withPWA({
         cacheName: 'images',
         expiration: {
           maxEntries: 100,
-          maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+          maxAgeSeconds: 30 * 24 * 60 * 60,
         },
       },
     },
@@ -96,7 +83,7 @@ export default withPWA({
         cacheName: 'static-resources',
         expiration: {
           maxEntries: 100,
-          maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+          maxAgeSeconds: 30 * 24 * 60 * 60,
         },
       },
     },
