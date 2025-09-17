@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export const runtime = 'edge';
 
 // Base API URL from env (falls back to production if not set)
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://api.thethirdvoice.ai';
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'https://api.thethirdvoice.ai').replace(/\/+$/, '');
 
 async function handleRequest(
   req: NextRequest,
@@ -14,7 +14,9 @@ async function handleRequest(
 ) {
   const resolvedParams = await params;
   const pathSegments = resolvedParams.path;
-  let targetPath = pathSegments.join('/');
+
+  // Join path segments and remove trailing slashes
+  let targetPath = pathSegments.join('/').replace(/\/+$/, '');
 
   // Special handling for docs
   if (pathSegments[0] === 'docs') {
@@ -43,18 +45,13 @@ async function handleRequest(
 
     // Prepare headers with CORS
     const responseHeaders = new Headers();
-    response.headers.forEach((value, key) => {
-      responseHeaders.set(key, value);
-    });
+    response.headers.forEach((value, key) => responseHeaders.set(key, value));
     responseHeaders.set('Access-Control-Allow-Origin', '*');
     responseHeaders.set(
       'Access-Control-Allow-Methods',
       'GET, POST, PUT, DELETE, PATCH, OPTIONS'
     );
-    responseHeaders.set(
-      'Access-Control-Allow-Headers',
-      'Content-Type, Authorization'
-    );
+    responseHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
     // Handle content type
     const contentType = response.headers.get('content-type');
@@ -72,10 +69,7 @@ async function handleRequest(
     console.error(`${method} Proxy error for ${url}:`, error);
     return NextResponse.json(
       { error: 'Proxy request failed', message: (error as Error).message, url },
-      {
-        status: 500,
-        headers: { 'Access-Control-Allow-Origin': '*' },
-      }
+      { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } }
     );
   }
 }
@@ -84,15 +78,12 @@ async function handleRequest(
 export async function GET(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   return handleRequest(req, 'GET', ctx.params);
 }
-
 export async function POST(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   return handleRequest(req, 'POST', ctx.params);
 }
-
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   return handleRequest(req, 'PUT', ctx.params);
 }
-
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   return handleRequest(req, 'DELETE', ctx.params);
 }
