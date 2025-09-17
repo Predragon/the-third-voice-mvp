@@ -21,6 +21,8 @@ const APIDiagnosticTool = () => {
   const [diagnostics, setDiagnostics] = useState<Record<string, DiagnosticResult>>({});
   const [isRunning, setIsRunning] = useState(false);
 
+  const cleanUrl = (url: string) => url.replace(/\/$/, ''); // Remove trailing slash
+
   const runFullDiagnostic = async () => {
     setIsRunning(true);
     setDiagnostics({});
@@ -28,56 +30,56 @@ const APIDiagnosticTool = () => {
     const tests = [
       {
         name: 'Direct Backend Connection',
-        test: () => fetch('https://api.thethirdvoice.ai/api/health/', { 
+        test: () => fetch(cleanUrl('https://api.thethirdvoice.ai/api/health'), { 
           method: 'GET',
           headers: { 'Accept': 'application/json' }
         })
       },
       {
         name: 'Proxy Connection',
-        test: () => fetch('/api/proxy/api/health/', {
+        test: () => fetch(cleanUrl('/api/proxy/api/health'), {
           method: 'GET',
           headers: { 'Accept': 'application/json' }
         })
       },
       {
         name: 'Root Endpoint',
-        test: () => fetch('/api/proxy/', {
+        test: () => fetch(cleanUrl('/api/proxy'), {
           method: 'GET',
           headers: { 'Accept': 'application/json' }
         })
       },
       {
         name: 'AI Engine Status',
-        test: () => fetch('/api/proxy/api/health/ai-engine', {
+        test: () => fetch(cleanUrl('/api/proxy/api/health/ai-engine'), {
           method: 'GET',
           headers: { 'Accept': 'application/json' }
         })
       },
       {
         name: 'Database Connection',
-        test: () => fetch('/api/proxy/api/health/database', {
+        test: () => fetch(cleanUrl('/api/proxy/api/health/database'), {
           method: 'GET',
           headers: { 'Accept': 'application/json' }
         })
       },
       {
         name: 'System Health',
-        test: () => fetch('/api/proxy/api/health/system', {
+        test: () => fetch(cleanUrl('/api/proxy/api/health/system'), {
           method: 'GET',
           headers: { 'Accept': 'application/json' }
         })
       },
       {
         name: 'Readiness Check',
-        test: () => fetch('/api/proxy/api/health/ready', {
+        test: () => fetch(cleanUrl('/api/proxy/api/health/ready'), {
           method: 'GET',
           headers: { 'Accept': 'application/json' }
         })
       },
       {
         name: 'Quick Transform (AI Test)',
-        test: () => fetch('/api/proxy/api/messages/quick-transform', {
+        test: () => fetch(cleanUrl('/api/proxy/api/messages/quick-transform'), {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -93,7 +95,7 @@ const APIDiagnosticTool = () => {
       },
       {
         name: 'Quick Interpret (AI Test)',
-        test: () => fetch('/api/proxy/api/messages/quick-interpret', {
+        test: () => fetch(cleanUrl('/api/proxy/api/messages/quick-interpret'), {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -109,42 +111,42 @@ const APIDiagnosticTool = () => {
       },
       {
         name: 'Messages Health',
-        test: () => fetch('/api/proxy/api/messages/health', {
+        test: () => fetch(cleanUrl('/api/proxy/api/messages/health'), {
           method: 'GET',
           headers: { 'Accept': 'application/json' }
         })
       },
       {
         name: 'Get Contacts',
-        test: () => fetch('/api/proxy/api/contacts/', {
+        test: () => fetch(cleanUrl('/api/proxy/api/contacts'), {
           method: 'GET',
           headers: { 'Accept': 'application/json' }
         })
       },
       {
         name: 'Available Contexts',
-        test: () => fetch('/api/proxy/api/contacts/contexts/available', {
+        test: () => fetch(cleanUrl('/api/proxy/api/contacts/contexts/available'), {
           method: 'GET',
           headers: { 'Accept': 'application/json' }
         })
       },
       {
         name: 'Feedback Categories',
-        test: () => fetch('/api/proxy/api/feedback/categories', {
+        test: () => fetch(cleanUrl('/api/proxy/api/feedback/categories'), {
           method: 'GET',
           headers: { 'Accept': 'application/json' }
         })
       },
       {
         name: 'Detailed Health Check',
-        test: () => fetch('/api/proxy/api/health/detailed', {
+        test: () => fetch(cleanUrl('/api/proxy/api/health/detailed'), {
           method: 'GET',
           headers: { 'Accept': 'application/json' }
         })
       },
       {
         name: 'OpenAPI Docs',
-        test: () => fetch('/api/proxy/openapi.json', {
+        test: () => fetch(cleanUrl('/api/proxy/openapi.json'), {
           method: 'GET',
           headers: { 'Accept': 'application/json' }
         })
@@ -382,7 +384,7 @@ const APIDiagnosticTool = () => {
             <ul className="list-disc list-inside text-gray-600 ml-4 space-y-1">
               <li>Check if Raspberry Pi is running</li>
               <li>Verify Cloudflare Tunnel is active</li>
-              <li>Test: <code className="bg-gray-100 px-1 rounded">curl https://api.thethirdvoice.ai/api/health/</code></li>
+              <li>Test: <code className="bg-gray-100 px-1 rounded">curl https://api.thethirdvoice.ai/api/health</code></li>
             </ul>
           </div>
           
