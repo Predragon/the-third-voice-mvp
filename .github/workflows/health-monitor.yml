@@ -91,7 +91,7 @@ jobs:
         from: ${{ secrets.EMAIL_USERNAME }}
     
     - name: Send Slack Notification (Pi Down)
-      if: steps.health-check.outputs.status == 'down' && secrets.SLACK_WEBHOOK
+      if: steps.health-check.outputs.status == 'down'
       run: |
         BACKUP_STATUS="${{ steps.health-check.outputs.backup-status }}"
         
