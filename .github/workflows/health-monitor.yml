@@ -11,11 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Check Pi Server Health
+    - name: Check All Services Health
       id: health-check
       run: |
         echo "Checking Pi server health..."
-        
         if curl -f -s --max-time 15 https://api.thethirdvoice.ai/health > /dev/null 2>&1; then
           echo "status=healthy" >> $GITHUB_OUTPUT
           echo "✅ Pi server is responding normally"
@@ -24,7 +23,7 @@ jobs:
           echo "❌ Pi server is down or unreachable"
         fi
         
-        # Also check backup server
+        echo "Checking Render backup server..."
         if curl -f -s --max-time 10 https://the-third-voice-mvp.onrender.com/health > /dev/null 2>&1; then
           echo "backup-status=healthy" >> $GITHUB_OUTPUT
           echo "✅ Render backup server is healthy"
@@ -32,16 +31,26 @@ jobs:
           echo "backup-status=down" >> $GITHUB_OUTPUT
           echo "❌ Render backup server is also down!"
         fi
+        
+        echo "Checking Streamlit app..."
+        if curl -f -s --max-time 20 https://the-third-voice.streamlit.app/ > /dev/null 2>&1; then
+          echo "streamlit-status=healthy" >> $GITHUB_OUTPUT
+          echo "✅ Streamlit app is responding"
+        else
+          echo "streamlit-status=down" >> $GITHUB_OUTPUT
+          echo "⚠️ Streamlit app is not responding"
+        fi
 
     - name: Send Discord Notification
       if: steps.health-check.outputs.status == 'down'
       run: |
         BACKUP_STATUS="${{ steps.health-check.outputs.backup-status }}"
+        STREAMLIT_STATUS="${{ steps.health-check.outputs.streamlit-status }}"
         
         if [ "$BACKUP_STATUS" == "healthy" ]; then
-          MESSAGE="Pi Server Down - Backup Available. Primary server unreachable, Render backup operational. Time: $(date -u)"
+          MESSAGE="Pi Server Down - Backup Available. Primary server unreachable, Render backup operational, Streamlit status: $STREAMLIT_STATUS. Time: $(date -u)"
         else
-          MESSAGE="CRITICAL: Both Servers Down. Both primary and backup unreachable. Time: $(date -u)"
+          MESSAGE="CRITICAL: Both Servers Down. Primary and backup unreachable, Streamlit status: $STREAMLIT_STATUS. Time: $(date -u)"
         fi
         
         echo "Sending Discord notification..."
@@ -54,3 +63,4 @@ jobs:
       run: |
         echo "✅ Health check passed - Pi server responding normally"
         echo "✅ Backup server status: ${{ steps.health-check.outputs.backup-status }}"
+        echo "✅ Streamlit app status: ${{ steps.health-check.outputs.streamlit-status }}"
