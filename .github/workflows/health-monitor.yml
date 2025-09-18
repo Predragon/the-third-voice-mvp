@@ -39,36 +39,15 @@ jobs:
         BACKUP_STATUS="${{ steps.health-check.outputs.backup-status }}"
         
         if [ "$BACKUP_STATUS" == "healthy" ]; then
-          MESSAGE="🟡 **Pi Server Down - Backup Available**
-
-**Status:** Primary server unreachable
-**Backup:** Render server operational  
-**Action:** Consider switching to backup manually
-**Time:** $(date -u)
-
-Pi Server: https://api.thethirdvoice.ai/health ❌
-Backup: https://the-third-voice-mvp.onrender.com/health ✅"
+          MESSAGE="Pi Server Down - Backup Available. Primary server unreachable, Render backup operational. Time: $(date -u)"
         else
-          MESSAGE="🔴 **CRITICAL: Both Servers Down**
-
-**Status:** Both primary and backup unreachable
-**Action:** Immediate attention required
-**Time:** $(date -u)
-
-Pi Server: https://api.thethirdvoice.ai/health ❌  
-Backup: https://the-third-voice-mvp.onrender.com/health ❌"
+          MESSAGE="CRITICAL: Both Servers Down. Both primary and backup unreachable. Time: $(date -u)"
         fi
         
         echo "Sending Discord notification..."
         curl -H "Content-Type: application/json" \
           -d "{\"content\":\"$MESSAGE\"}" \
           "${{ secrets.DISCORD_WEBHOOK }}"
-        
-        if [ $? -eq 0 ]; then
-          echo "✅ Discord notification sent successfully"
-        else
-          echo "❌ Failed to send Discord notification"
-        fi
 
     - name: Log Successful Check
       if: steps.health-check.outputs.status == 'healthy'
