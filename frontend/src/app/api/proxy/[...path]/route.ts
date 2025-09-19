@@ -76,9 +76,11 @@ async function handleRequest(
   try {
     const init: RequestInit = {
       method,
-      headers: new Headers(req.headers),
+      headers: new Headers(req.headers ?? {}),
       cache: 'no-store',
     };
+
+    // Always set proxy User-Agent
     init.headers.set('User-Agent', 'NextJS-Proxy');
 
     if (['POST', 'PUT', 'PATCH'].includes(method)) {
