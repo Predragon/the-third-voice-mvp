@@ -357,6 +357,11 @@ export async function GET(
   try {
     const resolvedParams = await ctx.params;
 
+    // Debug logging
+    console.log('[Debug] Received path:', resolvedParams.path);
+    console.log('[Debug] Path length:', resolvedParams.path.length);
+    console.log('[Debug] First path element:', resolvedParams.path[0]);
+
     // Custom proxy status endpoint
     if (resolvedParams.path.length === 1 && resolvedParams.path[0] === 'status') {
       const now = Date.now();
@@ -472,4 +477,4 @@ export async function OPTIONS(req: NextRequest) {
     status: 200,
     headers: responseHeaders,
   });
-  }
+}
