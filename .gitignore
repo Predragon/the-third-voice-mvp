@@ -65,3 +65,4 @@ test_api.sh
 frontend.log
 backend.log
 package.json.backup_*
+.vercel
