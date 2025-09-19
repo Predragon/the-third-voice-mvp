@@ -1,0 +1,32 @@
+# .github/workflows/keep-alive.yml
+name: Keep Render Service Alive
+
+on:
+  schedule:
+    # Run every 10 minutes (cron format: minute hour day month day-of-week)
+    - cron: '*/10 * * * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  ping-service:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Ping Render Service
+      run: |
+        echo "Pinging Render service to keep it alive..."
+        
+        # Ping the root endpoint
+        curl -f -s https://the-third-voice-mvp.onrender.com/ || echo "Root endpoint failed"
+        
+        # Wait 2 seconds between requests
+        sleep 2
+        
+        # Ping the health endpoint 
+        curl -f -s https://the-third-voice-mvp.onrender.com/health || echo "Health endpoint failed"
+        
+        echo "Keepalive ping completed"
+        
+    - name: Log Status
+      run: |
+        echo "Keepalive job finished at $(date)"

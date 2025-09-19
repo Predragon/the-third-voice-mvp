@@ -10,7 +10,10 @@ const SECONDARY = 'https://the-third-voice-mvp.onrender.com'; // Render backup
 // Shared state (edge runtime: cached per region, not persisted globally)
 let isPrimaryHealthy = true;
 let lastChecked = 0;
+<<<<<<< HEAD
 let backendSince = Date.now(); // <-- tracks when backend last switched
+=======
+>>>>>>> origin/main
 const CHECK_INTERVAL = 30 * 1000; // 30s
 
 async function checkPrimaryHealth() {
@@ -20,6 +23,7 @@ async function checkPrimaryHealth() {
   lastChecked = now;
   try {
     const res = await fetch(`${PRIMARY}/api/health`, { cache: 'no-store', method: 'GET' });
+<<<<<<< HEAD
     const newStatus = res.ok;
 
     // If backend health changes, update since time
@@ -32,6 +36,10 @@ async function checkPrimaryHealth() {
     if (isPrimaryHealthy) {
       backendSince = now;
     }
+=======
+    isPrimaryHealthy = res.ok;
+  } catch {
+>>>>>>> origin/main
     isPrimaryHealthy = false;
   }
   return isPrimaryHealthy;
@@ -106,7 +114,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
   // Handle /api/proxy/status
   if (resolvedParams.path.length === 1 && resolvedParams.path[0] === 'status') {
     const now = Date.now();
+<<<<<<< HEAD
     const uptimeMs = now - backendSince;
+=======
+    const uptimeMs = now - lastChecked;
+>>>>>>> origin/main
     const uptime = {
       days: Math.floor(uptimeMs / (1000 * 60 * 60 * 24)),
       hours: Math.floor((uptimeMs / (1000 * 60 * 60)) % 24),
@@ -118,7 +130,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
       primaryHealthy: isPrimaryHealthy,
       currentBackend: isPrimaryHealthy ? "Pi Server" : "Render",
       lastChecked: new Date(lastChecked).toISOString(),
+<<<<<<< HEAD
       since: new Date(backendSince).toISOString(),
+=======
+      since: new Date(lastChecked).toISOString(),
+>>>>>>> origin/main
       uptime,
       checkIntervalSeconds: CHECK_INTERVAL / 1000,
     });

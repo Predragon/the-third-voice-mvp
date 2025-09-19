@@ -1,0 +1,56 @@
+# .github/workflows/health-monitor.yml
+name: Health Check Monitor
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # Every 10 minutes
+  workflow_dispatch: # Manual trigger
+
+jobs:
+  health-monitor:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Check Pi Server Health
+      id: health-check
+      run: |
+        echo "Checking Pi server health..."
+        
+        if curl -f -s --max-time 15 https://api.thethirdvoice.ai/health > /dev/null 2>&1; then
+          echo "status=healthy" >> $GITHUB_OUTPUT
+          echo "✅ Pi server is responding normally"
+        else
+          echo "status=down" >> $GITHUB_OUTPUT
+          echo "❌ Pi server is down or unreachable"
+        fi
+        
+        # Also check backup server
+        if curl -f -s --max-time 10 https://the-third-voice-mvp.onrender.com/health > /dev/null 2>&1; then
+          echo "backup-status=healthy" >> $GITHUB_OUTPUT
+          echo "✅ Render backup server is healthy"
+        else
+          echo "backup-status=down" >> $GITHUB_OUTPUT
+          echo "❌ Render backup server is also down!"
+        fi
+
+    - name: Send Discord Notification
+      if: steps.health-check.outputs.status == 'down'
+      run: |
+        BACKUP_STATUS="${{ steps.health-check.outputs.backup-status }}"
+        
+        if [ "$BACKUP_STATUS" == "healthy" ]; then
+          MESSAGE="Pi Server Down - Backup Available. Primary server unreachable, Render backup operational. Time: $(date -u)"
+        else
+          MESSAGE="CRITICAL: Both Servers Down. Both primary and backup unreachable. Time: $(date -u)"
+        fi
+        
+        echo "Sending Discord notification..."
+        curl -H "Content-Type: application/json" \
+          -d "{\"content\":\"$MESSAGE\"}" \
+          "${{ secrets.DISCORD_WEBHOOK }}"
+
+    - name: Log Successful Check
+      if: steps.health-check.outputs.status == 'healthy'
+      run: |
+        echo "✅ Health check passed - Pi server responding normally"
+        echo "✅ Backup server status: ${{ steps.health-check.outputs.backup-status }}"
