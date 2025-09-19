@@ -13,8 +13,19 @@ let lastChecked = 0;
 let backendSince = Date.now(); // <-- tracks when backend last switched
 const CHECK_INTERVAL = 30 * 1000; // 30s
 
-async function checkPrimaryHealth() {
+// Check health of primary backend
+async function checkPrimaryHealth(req?: NextRequest) {
   const now = Date.now();
+
+  // Force fallback if query param ?simulateDown=true is present
+  if (req?.url.includes('simulateDown=true')) {
+    console.log('⚠️ Simulating Pi server down');
+    isPrimaryHealthy = false;
+    backendSince = now;
+    lastChecked = now;
+    return isPrimaryHealthy;
+  }
+
   if (now - lastChecked < CHECK_INTERVAL) return isPrimaryHealthy; // cached
 
   lastChecked = now;
@@ -37,6 +48,7 @@ async function checkPrimaryHealth() {
   return isPrimaryHealthy;
 }
 
+// Handles actual request proxying
 async function handleRequest(
   req: NextRequest,
   method: string,
@@ -50,7 +62,7 @@ async function handleRequest(
   }
 
   // Pick backend based on health
-  const usePrimary = await checkPrimaryHealth();
+  const usePrimary = await checkPrimaryHealth(req);
   const baseUrl = usePrimary ? PRIMARY : SECONDARY;
   const url = `${baseUrl}/${targetPath}`;
 
@@ -99,10 +111,10 @@ async function handleRequest(
   }
 }
 
-// Handlers
+// HTTP Handlers
 export async function GET(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const resolvedParams = await ctx.params;
-  
+
   console.log('=== DEBUG INFO ===');
   console.log('Full URL:', req.url);
   console.log('Path array:', JSON.stringify(resolvedParams.path));
@@ -139,9 +151,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
 export async function POST(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   return handleRequest(req, 'POST', ctx.params);
 }
+
 export async function PUT(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   return handleRequest(req, 'PUT', ctx.params);
 }
+
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   return handleRequest(req, 'DELETE', ctx.params);
 }
