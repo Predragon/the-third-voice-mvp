@@ -102,9 +102,16 @@ async function handleRequest(
 // Handlers
 export async function GET(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const resolvedParams = await ctx.params;
+  
+  console.log('=== DEBUG INFO ===');
+  console.log('Full URL:', req.url);
+  console.log('Path array:', JSON.stringify(resolvedParams.path));
+  console.log('Path length:', resolvedParams.path.length);
+  console.log('First segment:', resolvedParams.path[0]);
 
   // Handle /api/proxy/status
   if (resolvedParams.path.length === 1 && resolvedParams.path[0] === 'status') {
+    console.log('✅ Status endpoint matched!');
     const now = Date.now();
     const uptimeMs = now - backendSince;
     const uptime = {
@@ -122,6 +129,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
       uptime,
       checkIntervalSeconds: CHECK_INTERVAL / 1000,
     });
+  } else {
+    console.log('❌ Status endpoint NOT matched - falling through to proxy');
   }
 
   return handleRequest(req, 'GET', ctx.params);
