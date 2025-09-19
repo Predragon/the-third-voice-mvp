@@ -1,11 +1,41 @@
 // src/api/proxy/[...path]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
-// Required for Cloudflare Pages compatibility
 export const runtime = 'edge';
 
-// Base API URL from env (falls back to production if not set)
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'https://api.thethirdvoice.ai').replace(/\/+$/, '');
+// Define your backends
+const PRIMARY = 'https://api.thethirdvoice.ai'; // Pi (via Cloudflare Tunnel)
+const SECONDARY = 'https://the-third-voice-mvp.onrender.com'; // Render backup
+
+// Shared state (edge runtime: cached per region, not persisted globally)
+let isPrimaryHealthy = true;
+let lastChecked = 0;
+let backendSince = Date.now(); // <-- tracks when backend last switched
+const CHECK_INTERVAL = 30 * 1000; // 30s
+
+async function checkPrimaryHealth() {
+  const now = Date.now();
+  if (now - lastChecked < CHECK_INTERVAL) return isPrimaryHealthy; // cached
+
+  lastChecked = now;
+  try {
+    const res = await fetch(`${PRIMARY}/api/health`, { cache: 'no-store', method: 'GET' });
+    const newStatus = res.ok;
+
+    // If backend health changes, update since time
+    if (newStatus !== isPrimaryHealthy) {
+      backendSince = now;
+    }
+
+    isPrimaryHealthy = newStatus;
+  } catch {
+    if (isPrimaryHealthy) {
+      backendSince = now;
+    }
+    isPrimaryHealthy = false;
+  }
+  return isPrimaryHealthy;
+}
 
 async function handleRequest(
   req: NextRequest,
@@ -13,18 +43,18 @@ async function handleRequest(
   params: Promise<{ path: string[] }>
 ) {
   const resolvedParams = await params;
-  const pathSegments = resolvedParams.path;
+  let targetPath = resolvedParams.path.join('/').replace(/\/+$/, '');
 
-  // Join path segments and remove trailing slashes
-  let targetPath = pathSegments.join('/').replace(/\/+$/, '');
-
-  // Special handling for docs
-  if (pathSegments[0] === 'docs') {
+  if (resolvedParams.path[0] === 'docs') {
     targetPath = 'docs';
   }
 
-  const url = `${API_BASE}/${targetPath}`;
-  console.log(`Proxying ${method} request to: ${url}`);
+  // Pick backend based on health
+  const usePrimary = await checkPrimaryHealth();
+  const baseUrl = usePrimary ? PRIMARY : SECONDARY;
+  const url = `${baseUrl}/${targetPath}`;
+
+  console.log(`Proxying ${method} to: ${url}`);
 
   try {
     const init: RequestInit = {
@@ -43,7 +73,6 @@ async function handleRequest(
 
     const response = await fetch(url, init);
 
-    // Prepare headers with CORS
     const responseHeaders = new Headers();
     response.headers.forEach((value, key) => responseHeaders.set(key, value));
     responseHeaders.set('Access-Control-Allow-Origin', '*');
@@ -53,17 +82,13 @@ async function handleRequest(
     );
     responseHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-    // Handle content type
     const contentType = response.headers.get('content-type');
     if (contentType?.includes('application/json')) {
-      const data = await response.json();
-      return NextResponse.json(data, { status: response.status, headers: responseHeaders });
+      return NextResponse.json(await response.json(), { status: response.status, headers: responseHeaders });
     } else if (contentType?.includes('text/')) {
-      const text = await response.text();
-      return new NextResponse(text, { status: response.status, headers: responseHeaders });
+      return new NextResponse(await response.text(), { status: response.status, headers: responseHeaders });
     } else {
-      const buffer = await response.arrayBuffer();
-      return new NextResponse(buffer, { status: response.status, headers: responseHeaders });
+      return new NextResponse(await response.arrayBuffer(), { status: response.status, headers: responseHeaders });
     }
   } catch (error) {
     console.error(`${method} Proxy error for ${url}:`, error);
@@ -76,6 +101,29 @@ async function handleRequest(
 
 // Handlers
 export async function GET(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+  const resolvedParams = await ctx.params;
+
+  // Handle /api/proxy/status
+  if (resolvedParams.path.length === 1 && resolvedParams.path[0] === 'status') {
+    const now = Date.now();
+    const uptimeMs = now - backendSince;
+    const uptime = {
+      days: Math.floor(uptimeMs / (1000 * 60 * 60 * 24)),
+      hours: Math.floor((uptimeMs / (1000 * 60 * 60)) % 24),
+      minutes: Math.floor((uptimeMs / (1000 * 60)) % 60),
+    };
+
+    return NextResponse.json({
+      domain: "thethirdvoice.ai",
+      primaryHealthy: isPrimaryHealthy,
+      currentBackend: isPrimaryHealthy ? "Pi Server" : "Render",
+      lastChecked: new Date(lastChecked).toISOString(),
+      since: new Date(backendSince).toISOString(),
+      uptime,
+      checkIntervalSeconds: CHECK_INTERVAL / 1000,
+    });
+  }
+
   return handleRequest(req, 'GET', ctx.params);
 }
 export async function POST(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
