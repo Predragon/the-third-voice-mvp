@@ -15,11 +15,6 @@ const CHECK_INTERVAL = 30 * 1000; // 30s
 
 /**
  * Health check for Pi server only.
- * - If Pi healthy → route traffic there.
- * - If Pi fails → fallback to Render.
- * Render is not actively checked here, because:
- *   - keep-alive.yml keeps Render warm.
- *   - health-monitor.yml separately alerts you if Render is down.
  */
 async function checkPrimaryHealth(req?: NextRequest) {
   const now = Date.now();
@@ -63,7 +58,6 @@ async function handleRequest(
   const resolvedParams = await params;
   let targetPath = resolvedParams.path.join('/').replace(/\/+$/, '');
 
-  // Shortcut for docs (optional)
   if (resolvedParams.path[0] === 'docs') targetPath = 'docs';
 
   // Pick backend
@@ -74,17 +68,22 @@ async function handleRequest(
   console.log(`[Proxy] ${method} → ${url}`);
 
   try {
+    // Always create headers explicitly
+    const headers = new Headers(req.headers ?? {});
+    headers.set('User-Agent', 'NextJS-Proxy');
+
     const init: RequestInit = {
       method,
-      headers: new Headers(req.headers ?? {}),
+      headers,
       cache: 'no-store',
     };
 
-    // Always set proxy User-Agent
-    init.headers.set('User-Agent', 'NextJS-Proxy');
-
     if (['POST', 'PUT', 'PATCH'].includes(method)) {
-      init.body = JSON.stringify(await req.json());
+      try {
+        init.body = JSON.stringify(await req.json());
+      } catch {
+        init.body = '{}'; // fallback if body is empty or invalid
+      }
     }
 
     const response = await fetch(url, init);
@@ -140,7 +139,6 @@ export async function GET(
 ) {
   const resolvedParams = await ctx.params;
 
-  // Custom proxy status endpoint
   if (resolvedParams.path.length === 1 && resolvedParams.path[0] === 'status') {
     const now = Date.now();
     const uptimeMs = now - backendSince;
@@ -184,7 +182,6 @@ export async function DELETE(
   return handleRequest(req, 'DELETE', ctx.params);
 }
 
-// Preflight requests
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
