@@ -257,8 +257,9 @@ async function handleRequest(req: NextRequest, method: string, params: { path: s
 /**
  * App Router handlers
  */
-export async function GET(req: NextRequest, ctx: { params: { path: string[] } }) {
-  const pathSegments = ctx.params.path ?? [];
+export async function GET(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+  const params = await ctx.params;
+  const pathSegments = params.path ?? [];
 
   // status endpoint: /api/proxy/status
   if (pathSegments.length === 1 && pathSegments[0] === 'status') {
@@ -283,20 +284,27 @@ export async function GET(req: NextRequest, ctx: { params: { path: string[] } })
   }
 
   // If not the status endpoint, proxy the request.
-  return handleRequest(req, 'GET', ctx.params);
+  return handleRequest(req, 'GET', params);
 }
 
-export async function POST(req: NextRequest, ctx: { params: { path: string[] } }) {
-  return handleRequest(req, 'POST', ctx.params);
+export async function POST(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+  const params = await ctx.params;
+  return handleRequest(req, 'POST', params);
 }
-export async function PUT(req: NextRequest, ctx: { params: { path: string[] } }) {
-  return handleRequest(req, 'PUT', ctx.params);
+
+export async function PUT(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+  const params = await ctx.params;
+  return handleRequest(req, 'PUT', params);
 }
-export async function PATCH(req: NextRequest, ctx: { params: { path: string[] } }) {
-  return handleRequest(req, 'PATCH', ctx.params);
+
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+  const params = await ctx.params;
+  return handleRequest(req, 'PATCH', params);
 }
-export async function DELETE(req: NextRequest, ctx: { params: { path: string[] } }) {
-  return handleRequest(req, 'DELETE', ctx.params);
+
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+  const params = await ctx.params;
+  return handleRequest(req, 'DELETE', params);
 }
 
 // Preflight
