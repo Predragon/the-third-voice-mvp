@@ -27,7 +27,7 @@ async function checkPrimaryHealth() {
 
   lastChecked = now;
   try {
-    const res = await fetch(`${PRIMARY}/api/health`, { cache: 'no-store', method: 'GET' });
+    const res = await fetch(`${PRIMARY}/api/health/`, { cache: 'no-store', method: 'GET' });
     const newStatus = res.ok;
 
     // If backend health changes, update since time
