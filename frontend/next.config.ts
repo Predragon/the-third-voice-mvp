@@ -3,11 +3,14 @@ import withPWA from 'next-pwa';
 
 const isDev = process.env.NODE_ENV === 'development';
 const isCloudflare = Boolean(process.env.CF_PAGES);
+const isVercel = Boolean(process.env.VERCEL);
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.thethirdvoice.ai";
 
 const nextConfig: NextConfig = {
   async rewrites() {
-    if (!isCloudflare) {
+    // Only use rewrites for local development, not on Vercel or Cloudflare
+    // This allows route.ts to handle intelligent failover on production
+    if (!isCloudflare && !isVercel) {
       return [
         {
           source: '/api/proxy/:path*',
