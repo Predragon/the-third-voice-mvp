@@ -262,7 +262,6 @@ export async function GET(req: NextRequest, ctx: { params: { path: string[] } })
 
   // status endpoint: /api/proxy/status
   if (pathSegments.length === 1 && pathSegments[0] === 'status') {
-    // Ensure this branch returns its own response and does not fall through.
     const now = Date.now();
     const uptimeMs = now - backendSince;
     const uptime = {
