@@ -38,8 +38,7 @@ async function checkPrimaryHealth(req?: NextRequest) {
 
   // Testing override: ?simulateDown=true
   try {
-    if (req?.url && req.url.includes('simulateDown=true')) {
-      // ** Fix ** Pass the request to this function to correctly read the query param
+    if (req?.url && new URL(req.url).searchParams.get('simulateDown') === 'true') {
       console.log('[proxy] simulateDown=true -> forcing primary down');
       isPrimaryHealthy = false;
       backendSince = now;
@@ -149,14 +148,13 @@ async function fetchWithRetries(url: string, init: RequestInit, timeoutMs = REQU
 /**
  * Proxy handler: forwards request to selected backend and returns response back to client.
  */
-async function handleRequest(req: NextRequest, method: string, params: Promise<{ path: string[] }>) {
-  const resolved = await params;
-  const pathSegments = resolved.path ?? [];
+async function handleRequest(req: NextRequest, method: string, params: { path: string[] }) {
+  const pathSegments = params.path ?? [];
   // join path segments into path, remove trailing slashes
   const targetPath = pathSegments.join('/').replace(/\/+$/, '');
 
   // decide backend according to primary health
-  const usePrimary = await checkPrimaryHealth(req); // Pass the request object here
+  const usePrimary = await checkPrimaryHealth(req);
   const baseUrl = usePrimary ? PRIMARY : SECONDARY;
   const url = `${baseUrl}/${targetPath}`;
 
@@ -259,11 +257,12 @@ async function handleRequest(req: NextRequest, method: string, params: Promise<{
 /**
  * App Router handlers
  */
-export async function GET(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
-  const resolved = await ctx.params;
+export async function GET(req: NextRequest, ctx: { params: { path: string[] } }) {
+  const pathSegments = ctx.params.path ?? [];
 
   // status endpoint: /api/proxy/status
-  if (resolved.path.length === 1 && resolved.path[0] === 'status') {
+  if (pathSegments.length === 1 && pathSegments[0] === 'status') {
+    // Ensure this branch returns its own response and does not fall through.
     const now = Date.now();
     const uptimeMs = now - backendSince;
     const uptime = {
@@ -284,20 +283,20 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
     }, { status: 200, headers: { 'Access-Control-Allow-Origin': '*' } });
   }
 
-  // otherwise proxy
+  // If not the status endpoint, proxy the request.
   return handleRequest(req, 'GET', ctx.params);
 }
 
-export async function POST(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+export async function POST(req: NextRequest, ctx: { params: { path: string[] } }) {
   return handleRequest(req, 'POST', ctx.params);
 }
-export async function PUT(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+export async function PUT(req: NextRequest, ctx: { params: { path: string[] } }) {
   return handleRequest(req, 'PUT', ctx.params);
 }
-export async function PATCH(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+export async function PATCH(req: NextRequest, ctx: { params: { path: string[] } }) {
   return handleRequest(req, 'PATCH', ctx.params);
 }
-export async function DELETE(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+export async function DELETE(req: NextRequest, ctx: { params: { path: string[] } }) {
   return handleRequest(req, 'DELETE', ctx.params);
 }
 
