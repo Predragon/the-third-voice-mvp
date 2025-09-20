@@ -3,473 +3,312 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'edge';
 
-// Backends
-const PRIMARY = 'https://api.thethirdvoice.ai'; // Pi (via Cloudflare Tunnel)
-const SECONDARY = 'https://the-third-voice-mvp.onrender.com'; // Render backup
+// Primary = Pi via Cloudflare Tunnel
+// Secondary = Render backup
+const PRIMARY = 'https://api.thethirdvoice.ai';
+const SECONDARY = 'https://the-third-voice-mvp.onrender.com';
 
-// Configuration
-const HEALTH_CHECK_INTERVAL = 30 * 1000; // 30s
-const REQUEST_TIMEOUT = 30 * 1000; // 30s
-const HEALTH_CHECK_TIMEOUT = 5 * 1000; // 5s
+// Shared edge-region-cached state (not globally persisted)
+let isPrimaryHealthy = true;
+let lastChecked = 0; // timestamp of last health check
+let backendSince = Date.now(); // when the active backend last changed
+const CHECK_INTERVAL = 30 * 1000; // 30s cache for health checks
+
+// Retry / timeout config
+const REQUEST_TIMEOUT_MS = 30_000; // 30s each proxied request
 const MAX_RETRIES = 2;
+const RETRY_BACKOFF_BASE_MS = 250; // exponential backoff base
 
-// Headers that should not be forwarded
-const BLOCKED_HEADERS = new Set([
-  'host', 'connection', 'keep-alive', 'proxy-authenticate', 
-  'proxy-authorization', 'te', 'trailer', 'upgrade'
+// Headers we should strip before forwarding (host, connection, content-length are problematic)
+const FORWARD_REMOVE_HEADERS = new Set([
+  'host',
+  'connection',
+  'content-length',
+  'transfer-encoding',
+  'x-forwarded-for',
+  'x-real-ip',
 ]);
 
-// Shared state (edge runtime: cached per Vercel region)
-let isPrimaryHealthy = true;
-let lastChecked = 0;
-let backendSince = Date.now();
-let consecutiveFailures = 0;
-
 /**
- * Create timeout controller with cleanup
+ * Do a cached health check of the PRIMARY (Pi) server.
+ * Optionally you can pass the incoming request so query `?simulateDown=true` forces fallback.
  */
-function createTimeoutController(timeoutMs: number) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => {
-    controller.abort();
-  }, timeoutMs);
-  
-  return {
-    controller,
-    cleanup: () => clearTimeout(timeoutId)
-  };
-}
-
-/**
- * Robust health check for Pi server only.
- */
-async function checkPrimaryHealth(req?: NextRequest): Promise<boolean> {
+async function checkPrimaryHealth(req?: NextRequest) {
   const now = Date.now();
 
-  // Manual failover testing with ?simulateDown=true
-  if (req?.url.includes('simulateDown=true')) {
-    if (isPrimaryHealthy) {
+  // Testing override: ?simulateDown=true
+  try {
+    if (req?.url && req.url.includes('simulateDown=true')) {
+      console.log('[proxy] simulateDown=true -> forcing primary down');
       isPrimaryHealthy = false;
       backendSince = now;
-      consecutiveFailures = 1;
+      lastChecked = now;
+      return isPrimaryHealthy;
     }
-    lastChecked = now;
-    return isPrimaryHealthy;
+  } catch (e) {
+    // ignore
   }
 
-  // Cache health check result for CHECK_INTERVAL
-  if (now - lastChecked < HEALTH_CHECK_INTERVAL) {
-    return isPrimaryHealthy;
-  }
+  // Use cached value if within CHECK_INTERVAL
+  if (now - lastChecked < CHECK_INTERVAL) return isPrimaryHealthy;
 
   lastChecked = now;
-  const { controller, cleanup } = createTimeoutController(HEALTH_CHECK_TIMEOUT);
-
   try {
-    const response = await fetch(`${PRIMARY}/health`, {
-      method: 'GET',
-      cache: 'no-store',
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'NextJS-Proxy-HealthCheck'
-      }
-    });
+    // call primary health endpoint
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 5000); // short health-check timeout (5s)
+    const res = await fetch(`${PRIMARY}/api/health`, { method: 'GET', cache: 'no-store', signal: controller.signal });
+    clearTimeout(id);
 
-    cleanup();
-    const newStatus = response.ok && response.status < 400;
-
-    if (newStatus !== isPrimaryHealthy) {
-      backendSince = now;
-      consecutiveFailures = newStatus ? 0 : consecutiveFailures + 1;
-      console.log(`[Health Check] Primary backend ${newStatus ? 'recovered' : 'failed'}. Consecutive failures: ${consecutiveFailures}`);
+    const ok = res.ok;
+    if (ok !== isPrimaryHealthy) {
+      backendSince = now; // record switch time
+      console.log(`[proxy] primary health changed: ${isPrimaryHealthy} -> ${ok}`);
     }
-
-    isPrimaryHealthy = newStatus;
-    if (newStatus) consecutiveFailures = 0;
-
-  } catch (error) {
-    cleanup();
-    consecutiveFailures++;
-    
-    if (isPrimaryHealthy) {
-      backendSince = now;
-      console.log(`[Health Check] Primary backend failed: ${error instanceof Error ? error.message : 'Unknown error'}. Consecutive failures: ${consecutiveFailures}`);
-    }
-    
+    isPrimaryHealthy = ok;
+  } catch (err) {
+    // network / timeout -> primary considered down
+    if (isPrimaryHealthy) backendSince = now;
     isPrimaryHealthy = false;
+    console.warn('[proxy] primary health check failed:', (err as Error).message);
   }
 
   return isPrimaryHealthy;
 }
 
 /**
- * Clean and filter headers for forwarding
+ * Build headers for outgoing proxied request by copying incoming request headers
+ * and removing problematic ones. Also set a safe User-Agent.
  */
-function createForwardHeaders(originalHeaders: Headers): Headers {
+function buildForwardHeaders(inHeaders: Headers) {
   const headers = new Headers();
-  
-  originalHeaders.forEach((value, key) => {
-    const lowerKey = key.toLowerCase();
-    if (!BLOCKED_HEADERS.has(lowerKey)) {
+
+  // copy allowed headers
+  inHeaders.forEach((value, key) => {
+    if (!FORWARD_REMOVE_HEADERS.has(key.toLowerCase())) {
       headers.set(key, value);
     }
   });
 
-  // Always set proxy User-Agent
-  headers.set('User-Agent', 'NextJS-Proxy');
-  
+  // ensure sensible defaults
+  if (!headers.get('accept')) headers.set('accept', 'application/json, text/*, */*');
+  headers.set('user-agent', 'NextJS-Proxy'); // override User-Agent
+
   return headers;
 }
 
 /**
- * Handle request body safely
+ * Fetch with timeout + retries + exponential backoff
  */
-async function handleRequestBody(req: NextRequest, method: string, headers: Headers): Promise<BodyInit | null> {
-  if (!['POST', 'PUT', 'PATCH'].includes(method)) {
-    return null;
-  }
+async function fetchWithRetries(url: string, init: RequestInit, timeoutMs = REQUEST_TIMEOUT_MS) {
+  let attempt = 0;
+  let lastErr: any = null;
 
-  try {
-    const contentType = req.headers.get('content-type')?.toLowerCase() || '';
-    
-    if (contentType.includes('application/json')) {
-      const jsonData = await req.json();
-      headers.set('Content-Type', 'application/json');
-      return JSON.stringify(jsonData);
-    } else if (contentType.includes('text/')) {
-      const textData = await req.text();
-      headers.set('Content-Type', contentType);
-      return textData;
-    } else if (contentType.includes('multipart/form-data') || contentType.includes('application/x-www-form-urlencoded')) {
-      // For form data, pass through as-is
-      const formData = await req.arrayBuffer();
-      if (contentType) headers.set('Content-Type', contentType);
-      return formData;
-    } else {
-      // Default: try to read as array buffer
-      const buffer = await req.arrayBuffer();
-      if (contentType) headers.set('Content-Type', contentType);
-      return buffer;
-    }
-  } catch (error) {
-    console.error('[Body Parse Error]:', error);
-    throw new Error(`Invalid request body: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
-}
+  while (attempt <= MAX_RETRIES) {
+    const controller = new AbortController();
+    const signal = controller.signal;
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-/**
- * Make request with retries and circuit breaker logic
- */
-async function makeRequestWithRetries(url: string, init: RequestInit, retries = MAX_RETRIES): Promise<Response> {
-  let lastError: Error | null = null;
-  
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    const { controller, cleanup } = createTimeoutController(REQUEST_TIMEOUT);
-    
     try {
-      const response = await fetch(url, {
-        ...init,
-        signal: controller.signal
-      });
-      
-      cleanup();
-      
-      // Don't retry on client errors (4xx), only server errors (5xx) and network issues
-      if (response.status < 500) {
-        return response;
-      }
-      
-      if (attempt < retries) {
-        const delay = Math.min(1000 * Math.pow(2, attempt), 5000); // Exponential backoff, max 5s
-        console.log(`[Retry] Attempt ${attempt + 1} failed with ${response.status}. Retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+      const mergedInit: RequestInit = { ...init, signal };
+      const res = await fetch(url, mergedInit);
+      clearTimeout(timer);
+
+      // treat HTTP 502/503/504 as retryable network errors
+      if ([502, 503, 504].includes(res.status) && attempt < MAX_RETRIES) {
+        attempt++;
+        const delay = RETRY_BACKOFF_BASE_MS * 2 ** (attempt - 1);
+        await new Promise(r => setTimeout(r, delay));
         continue;
       }
-      
-      return response;
-      
-    } catch (error) {
-      cleanup();
-      lastError = error as Error;
-      
-      if (attempt < retries) {
-        const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
-        console.log(`[Retry] Attempt ${attempt + 1} failed: ${lastError.message}. Retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+
+      // success (may be non-200 but it's a valid response)
+      return res;
+    } catch (err) {
+      lastErr = err;
+      clearTimeout(timer);
+
+      // abort / network error -> retry if attempts left
+      if (attempt < MAX_RETRIES) {
+        const delay = RETRY_BACKOFF_BASE_MS * 2 ** attempt;
+        await new Promise(r => setTimeout(r, delay));
+        attempt++;
         continue;
       }
-      
-      throw lastError;
+
+      // no attempts left -> throw
+      throw err;
     }
   }
-  
-  throw lastError || new Error('Max retries exceeded');
+
+  // should never reach, but throw last error
+  throw lastErr;
 }
 
 /**
- * Build target URL with query parameters
+ * Proxy handler: forwards request to selected backend and returns response back to client.
  */
-function buildTargetUrl(baseUrl: string, resolvedParams: { path: string[] }, originalUrl: string): string {
-  let targetPath = resolvedParams.path.join('/').replace(/\/+$/, '');
-  
-  // Shortcut for docs (optional)
-  if (resolvedParams.path[0] === 'docs') {
-    targetPath = 'docs';
-  }
-  
-  const targetUrl = new URL(`${baseUrl}/${targetPath}`);
-  
-  // Copy query parameters from original request
+async function handleRequest(req: NextRequest, method: string, params: Promise<{ path: string[] }>) {
+  const resolved = await params;
+  const pathSegments = resolved.path ?? [];
+  // join path segments into path, remove trailing slashes
+  const targetPath = pathSegments.join('/').replace(/\/+$/, '');
+
+  // decide backend according to primary health
+  const usePrimary = await checkPrimaryHealth(req);
+  const baseUrl = usePrimary ? PRIMARY : SECONDARY;
+  const url = `${baseUrl}/${targetPath}`;
+
+  // keep query string
+  const urlObj = new URL(url);
   try {
-    const originalUrlObj = new URL(originalUrl);
-    originalUrlObj.searchParams.forEach((value, key) => {
-      // Skip proxy-specific parameters
-      if (!['simulateDown'].includes(key)) {
-        targetUrl.searchParams.set(key, value);
-      }
+    const originalUrl = new URL(req.url);
+    originalUrl.searchParams.forEach((v, k) => {
+      // forward all query params except our simulateDown test param
+      if (k !== 'simulateDown') urlObj.searchParams.set(k, v);
     });
-  } catch (error) {
-    console.warn('[URL Parse Warning]:', error);
+  } catch {
+    // ignore if parsing fails
   }
-  
-  return targetUrl.toString();
-}
 
-/**
- * Handle response with proper content type detection
- */
-async function handleResponse(response: Response): Promise<NextResponse> {
-  const responseHeaders = new Headers();
-  
-  // Copy response headers
+  const forwardUrl = urlObj.toString();
+  console.log(`[proxy] ${method} -> ${forwardUrl} (primaryHealthy=${isPrimaryHealthy})`);
+
+  // build headers
+  const headers = buildForwardHeaders(req.headers);
+
+  // body handling: we'll always attempt to forward body if present
+  let body: BodyInit | undefined = undefined;
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    try {
+      // try JSON first (works for common APIs)
+      const contentType = req.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const json = await req.json();
+        body = JSON.stringify(json);
+        if (!headers.get('content-type')) headers.set('content-type', 'application/json');
+      } else if (contentType.includes('application/x-www-form-urlencoded')) {
+        const text = await req.text();
+        body = text;
+        if (!headers.get('content-type')) headers.set('content-type', contentType);
+      } else {
+        // fallback to arrayBuffer for binary / unknown
+        const ab = await req.arrayBuffer();
+        if (ab && ab.byteLength) {
+          body = ab;
+          if (!headers.get('content-type') && contentType) headers.set('content-type', contentType);
+        }
+      }
+    } catch (e) {
+      // If parsing fails, leave body undefined (backend will handle)
+      console.warn('[proxy] body parse failed, forwarding without body:', (e as Error).message);
+    }
+  }
+
+  const init: RequestInit = {
+    method,
+    headers,
+    body,
+    // no-store to avoid edge caches interfering with failover checks
+    cache: 'no-store',
+  };
+
+  // perform fetch with retries/timeouts
+  let response;
+  try {
+    response = await fetchWithRetries(forwardUrl, init, REQUEST_TIMEOUT_MS);
+  } catch (err) {
+    console.error('[proxy] final fetch failure:', (err as Error).message);
+    return NextResponse.json(
+      { error: 'Proxy fetch failed', message: (err as Error).message, attemptedUrl: forwardUrl },
+      { status: 502, headers: { 'Access-Control-Allow-Origin': '*' } }
+    );
+  }
+
+  // prepare headers to return to the client (copy backend response headers)
+  const outHeaders = new Headers();
   response.headers.forEach((value, key) => {
-    responseHeaders.set(key, value);
+    // strip hop-by-hop headers if present
+    if (!FORWARD_REMOVE_HEADERS.has(key.toLowerCase())) outHeaders.set(key, value);
   });
-  
-  // Set CORS headers
-  responseHeaders.set('Access-Control-Allow-Origin', '*');
-  responseHeaders.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  responseHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
-  responseHeaders.set('Access-Control-Expose-Headers', 'Content-Type, Content-Length');
 
-  const contentType = response.headers.get('content-type')?.toLowerCase() || '';
+  // Always include permissive CORS for browser clients (adjust if needed)
+  outHeaders.set('Access-Control-Allow-Origin', '*');
+  outHeaders.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  outHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  outHeaders.set('Access-Control-Expose-Headers', 'Content-Type, Content-Length');
 
-  try {
-    if (contentType.includes('application/json')) {
-      const jsonData = await response.json();
-      return NextResponse.json(jsonData, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: responseHeaders,
-      });
-    } else if (contentType.includes('text/')) {
-      const textData = await response.text();
-      return new NextResponse(textData, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: responseHeaders,
-      });
-    } else {
-      const binaryData = await response.arrayBuffer();
-      return new NextResponse(binaryData, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: responseHeaders,
-      });
-    }
-  } catch (error) {
-    console.error('[Response Parse Error]:', error);
-    // Fallback: return response as-is
-    const fallbackData = await response.arrayBuffer();
-    return new NextResponse(fallbackData, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: responseHeaders,
-    });
+  // return body according to content-type
+  const contentType = response.headers.get('content-type') || '';
+
+  if (contentType.includes('application/json')) {
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status, headers: outHeaders });
+  } else if (contentType.startsWith('text/') || contentType === '') {
+    // text or no content-type => return as text
+    const text = await response.text();
+    return new NextResponse(text, { status: response.status, headers: outHeaders });
+  } else {
+    // binary (images, etc.)
+    const buffer = await response.arrayBuffer();
+    return new NextResponse(buffer, { status: response.status, headers: outHeaders });
   }
 }
 
 /**
- * Core proxy logic with full error handling
+ * App Router handlers
  */
-async function handleRequest(
-  req: NextRequest,
-  method: string,
-  params: Promise<{ path: string[] }>
-): Promise<NextResponse> {
-  try {
-    const resolvedParams = await params;
-    
-    // Pick backend with health check
-    const usePrimary = await checkPrimaryHealth(req);
-    const baseUrl = usePrimary ? PRIMARY : SECONDARY;
-    const url = buildTargetUrl(baseUrl, resolvedParams, req.url);
+export async function GET(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+  const resolved = await ctx.params;
 
-    console.log(`[Proxy] ${method} ${req.url} → ${url} (${usePrimary ? 'Primary' : 'Secondary'})`);
-
-    // Prepare headers
-    const headers = createForwardHeaders(req.headers);
-    
-    // Handle request body
-    const body = await handleRequestBody(req, method, headers);
-
-    const init: RequestInit = {
-      method,
-      headers,
-      cache: 'no-store',
-      body
+  // status endpoint: /api/proxy/status
+  if (resolved.path.length === 1 && resolved.path[0] === 'status') {
+    const now = Date.now();
+    const uptimeMs = now - backendSince;
+    const uptime = {
+      days: Math.floor(uptimeMs / (1000 * 60 * 60 * 24)),
+      hours: Math.floor((uptimeMs / (1000 * 60 * 60)) % 24),
+      minutes: Math.floor((uptimeMs / (1000 * 60)) % 60),
     };
 
-    // Make request with retries
-    const response = await makeRequestWithRetries(url, init);
-    
-    // Handle response
-    return await handleResponse(response);
-
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    const errorDetails = {
-      error: 'Proxy request failed',
-      message: errorMessage,
-      method,
-      timestamp: new Date().toISOString(),
-      backend: isPrimaryHealthy ? 'Primary' : 'Secondary',
-      consecutiveFailures
-    };
-
-    console.error(`[Proxy Error] ${method} ${req.url}:`, error);
-    
-    return NextResponse.json(errorDetails, {
-      status: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      }
-    });
+    return NextResponse.json({
+      domain: 'thethirdvoice.ai',
+      primaryHealthy: isPrimaryHealthy,
+      currentBackend: isPrimaryHealthy ? 'Pi Server (primary)' : 'Render (secondary)',
+      lastChecked: new Date(lastChecked).toISOString(),
+      since: new Date(backendSince).toISOString(),
+      uptime,
+      checkIntervalSeconds: CHECK_INTERVAL / 1000,
+      note: 'Use ?simulateDown=true to force primary down (for testing).',
+    }, { status: 200, headers: { 'Access-Control-Allow-Origin': '*' } });
   }
+
+  // otherwise proxy
+  return handleRequest(req, 'GET', ctx.params);
 }
 
-// Handlers with proper error boundaries
-export async function GET(
-  req: NextRequest,
-  ctx: { params: Promise<{ path: string[] }> }
-) {
-  try {
-    const resolvedParams = await ctx.params;
-
-    // Custom proxy status endpoint - check this FIRST
-    if (resolvedParams.path && resolvedParams.path[0] === 'status') {
-      const now = Date.now();
-      const uptimeMs = now - backendSince;
-      const uptime = {
-        days: Math.floor(uptimeMs / (1000 * 60 * 60 * 24)),
-        hours: Math.floor((uptimeMs / (1000 * 60 * 60)) % 24),
-        minutes: Math.floor((uptimeMs / (1000 * 60)) % 60),
-        seconds: Math.floor((uptimeMs / 1000) % 60)
-      };
-
-      return NextResponse.json({
-        status: 'healthy',
-        primaryHealthy: isPrimaryHealthy,
-        currentBackend: isPrimaryHealthy ? 'Pi Server (Primary)' : 'Render (Secondary)',
-        backendUrl: isPrimaryHealthy ? PRIMARY : SECONDARY,
-        lastHealthCheck: new Date(lastChecked).toISOString(),
-        backendSince: new Date(backendSince).toISOString(),
-        uptime,
-        consecutiveFailures,
-        checkIntervalSeconds: HEALTH_CHECK_INTERVAL / 1000,
-        requestTimeoutSeconds: REQUEST_TIMEOUT / 1000,
-        maxRetries: MAX_RETRIES,
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    return await handleRequest(req, 'GET', ctx.params);
-  } catch (error) {
-    console.error('[GET Handler Error]:', error);
-    return NextResponse.json(
-      { error: 'Handler error', message: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } }
-    );
-  }
+export async function POST(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+  return handleRequest(req, 'POST', ctx.params);
+}
+export async function PUT(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+  return handleRequest(req, 'PUT', ctx.params);
+}
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+  return handleRequest(req, 'PATCH', ctx.params);
+}
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+  return handleRequest(req, 'DELETE', ctx.params);
 }
 
-export async function POST(
-  req: NextRequest,
-  ctx: { params: Promise<{ path: string[] }> }
-) {
-  try {
-    return await handleRequest(req, 'POST', ctx.params);
-  } catch (error) {
-    console.error('[POST Handler Error]:', error);
-    return NextResponse.json(
-      { error: 'Handler error', message: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } }
-    );
-  }
-}
-
-export async function PUT(
-  req: NextRequest,
-  ctx: { params: Promise<{ path: string[] }> }
-) {
-  try {
-    return await handleRequest(req, 'PUT', ctx.params);
-  } catch (error) {
-    console.error('[PUT Handler Error]:', error);
-    return NextResponse.json(
-      { error: 'Handler error', message: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } }
-    );
-  }
-}
-
-export async function PATCH(
-  req: NextRequest,
-  ctx: { params: Promise<{ path: string[] }> }
-) {
-  try {
-    return await handleRequest(req, 'PATCH', ctx.params);
-  } catch (error) {
-    console.error('[PATCH Handler Error]:', error);
-    return NextResponse.json(
-      { error: 'Handler error', message: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } }
-    );
-  }
-}
-
-export async function DELETE(
-  req: NextRequest,
-  ctx: { params: Promise<{ path: string[] }> }
-) {
-  try {
-    return await handleRequest(req, 'DELETE', ctx.params);
-  } catch (error) {
-    console.error('[DELETE Handler Error]:', error);
-    return NextResponse.json(
-      { error: 'Handler error', message: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } }
-    );
-  }
-}
-
-// Enhanced preflight requests
-export async function OPTIONS(req: NextRequest) {
-  const origin = req.headers.get('origin');
-  const requestedMethod = req.headers.get('access-control-request-method');
-  const requestedHeaders = req.headers.get('access-control-request-headers');
-
-  const responseHeaders = new Headers();
-  responseHeaders.set('Access-Control-Allow-Origin', origin || '*');
-  responseHeaders.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  responseHeaders.set('Access-Control-Allow-Headers', requestedHeaders || 'Content-Type, Authorization, X-Requested-With');
-  responseHeaders.set('Access-Control-Expose-Headers', 'Content-Type, Content-Length');
-  responseHeaders.set('Access-Control-Max-Age', '86400');
-  responseHeaders.set('Access-Control-Allow-Credentials', 'false');
-
+// Preflight
+export async function OPTIONS() {
   return new NextResponse(null, {
-    status: 200,
-    headers: responseHeaders,
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Max-Age': '86400',
+    },
   });
 }
