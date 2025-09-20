@@ -39,6 +39,7 @@ async function checkPrimaryHealth(req?: NextRequest) {
   // Testing override: ?simulateDown=true
   try {
     if (req?.url && req.url.includes('simulateDown=true')) {
+      // ** Fix ** Pass the request to this function to correctly read the query param
       console.log('[proxy] simulateDown=true -> forcing primary down');
       isPrimaryHealthy = false;
       backendSince = now;
@@ -137,7 +138,7 @@ async function fetchWithRetries(url: string, init: RequestInit, timeoutMs = REQU
       }
 
       // no attempts left -> throw
-      throw err;
+      throw lastErr;
     }
   }
 
@@ -155,7 +156,7 @@ async function handleRequest(req: NextRequest, method: string, params: Promise<{
   const targetPath = pathSegments.join('/').replace(/\/+$/, '');
 
   // decide backend according to primary health
-  const usePrimary = await checkPrimaryHealth(req);
+  const usePrimary = await checkPrimaryHealth(req); // Pass the request object here
   const baseUrl = usePrimary ? PRIMARY : SECONDARY;
   const url = `${baseUrl}/${targetPath}`;
 
