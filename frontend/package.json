@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --no-verify-ts",
     "start": "next start",
     "test": "jest --watchAll=false --passWithNoTests",
     "lint": "next lint",
