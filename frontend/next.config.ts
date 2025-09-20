@@ -5,19 +5,21 @@ const isDev = process.env.NODE_ENV === 'development';
 const isCloudflare = Boolean(process.env.CF_PAGES);
 const isVercel = Boolean(process.env.VERCEL);
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.thethirdvoice.ai";
+const LOCAL_API_URL = process.env.LOCAL_API_URL || "http://localhost:8000";
 
 const nextConfig: NextConfig = {
   async rewrites() {
-    // Only use rewrites for local development, not on Vercel or Cloudflare
-    // This allows route.ts to handle intelligent failover on production
-    if (!isCloudflare && !isVercel) {
+    // Local development: use simple rewrites to local backend
+    if (isDev && !isVercel && !isCloudflare) {
       return [
         {
           source: '/api/proxy/:path*',
-          destination: `${API_URL}/:path*`,
+          destination: `${LOCAL_API_URL}/:path*`,
         },
       ];
     }
+    
+    // Production (Vercel/Cloudflare): let route.ts handle intelligent failover
     return [];
   },
 
@@ -27,7 +29,7 @@ const nextConfig: NextConfig = {
 
   images: {
     unoptimized: isCloudflare,
-    domains: ['localhost', 'api.thethirdvoice.ai'],
+    domains: ['localhost', 'api.thethirdvoice.ai', '127.0.0.1'],
   },
 
   eslint: {
