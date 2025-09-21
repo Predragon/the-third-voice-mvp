@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { AlertCircle, CheckCircle, XCircle, Loader, Zap } from 'lucide-react';
+import { AlertCircle, CheckCircle, XCircle, Loader, Zap, Server } from 'lucide-react';
 
 interface DiagnosticResult {
   status: 'success' | 'error';
@@ -10,6 +10,7 @@ interface DiagnosticResult {
   data?: string | Record<string, unknown>;
   error?: string;
   timestamp: string;
+  backend_id?: string;  // Add backend_id support
 }
 
 interface AnalysisItem {
@@ -73,6 +74,13 @@ const APIDiagnosticTool = () => {
       {
         name: 'Readiness Check',
         test: () => fetch(cleanUrl('/api/proxy/api/health/ready'), {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        })
+      },
+      {
+        name: 'Backend Info Check',
+        test: () => fetch(cleanUrl('/api/proxy/api/backend-info'), {
           method: 'GET',
           headers: { 'Accept': 'application/json' }
         })
@@ -160,10 +168,16 @@ const APIDiagnosticTool = () => {
         const responseTime = Date.now() - startTime;
         
         let data;
+        let backend_id;
         const contentType = response.headers.get('content-type');
         
         if (contentType && contentType.includes('application/json')) {
           data = await response.json();
+          
+          // Extract backend_id from response if available
+          if (data && typeof data === 'object' && 'backend_id' in data) {
+            backend_id = data.backend_id;
+          }
         } else {
           data = await response.text();
         }
@@ -175,6 +189,7 @@ const APIDiagnosticTool = () => {
             statusCode: response.status,
             responseTime,
             data,
+            backend_id,
             timestamp: new Date().toISOString()
           }
         }));
@@ -207,6 +222,32 @@ const APIDiagnosticTool = () => {
     const aiInterpret = diagnostics['Quick Interpret (AI Test)'];
     const directBackend = diagnostics['Direct Backend Connection'];
     const contacts = diagnostics['Get Contacts'];
+    const backendInfo = diagnostics['Backend Info Check'];
+
+    // Backend identification analysis
+    const backendIds = new Set();
+    Object.values(diagnostics).forEach(result => {
+      if (result.backend_id) {
+        backendIds.add(result.backend_id);
+      }
+    });
+
+    if (backendIds.size > 0) {
+      const backendList = Array.from(backendIds).join(', ');
+      const serverType = backendIds.has('b1') ? 'Pi Server' : 
+                        backendIds.has('b2') ? 'Render/Cloud' : 
+                        backendIds.has('dev') ? 'Development' : 'Unknown';
+      
+      analysis.push({
+        type: 'success',
+        message: `Backend identification working: ${serverType} (${backendList})`
+      });
+    } else {
+      analysis.push({
+        type: 'warning',
+        message: 'Backend ID not detected in responses - check backend identification system'
+      });
+    }
 
     if (directBackend?.status === 'error') {
       analysis.push({
@@ -234,6 +275,14 @@ const APIDiagnosticTool = () => {
       const response = typeof aiTransform.data === 'string' ? aiTransform.data : JSON.stringify(aiTransform.data);
       if (response.includes('transformed_message') && response.includes('healing_score')) {
         aiWorking.push('Transform');
+        
+        // Check for backend_id in AI responses
+        if (response.includes('backend_id')) {
+          analysis.push({
+            type: 'success',
+            message: 'AI Transform endpoint includes backend identification'
+          });
+        }
       }
     }
     
@@ -241,6 +290,14 @@ const APIDiagnosticTool = () => {
       const response = typeof aiInterpret.data === 'string' ? aiInterpret.data : JSON.stringify(aiInterpret.data);
       if (response.includes('suggested_responses') || response.includes('deeper_feelings')) {
         aiWorking.push('Interpret');
+        
+        // Check for backend_id in AI responses
+        if (response.includes('backend_id')) {
+          analysis.push({
+            type: 'success',
+            message: 'AI Interpret endpoint includes backend identification'
+          });
+        }
       }
     }
 
@@ -263,6 +320,13 @@ const APIDiagnosticTool = () => {
       });
     }
 
+    if (backendInfo?.status === 'success') {
+      analysis.push({
+        type: 'success',
+        message: 'Backend info endpoint functional - detailed backend information available'
+      });
+    }
+
     return analysis.length > 0 ? analysis : null;
   };
 
@@ -270,6 +334,27 @@ const APIDiagnosticTool = () => {
     if (status === 'success') return <CheckCircle className="w-5 h-5 text-green-500" />;
     if (status === 'error') return <XCircle className="w-5 h-5 text-red-500" />;
     return <AlertCircle className="w-5 h-5 text-yellow-500" />;
+  };
+
+  const getBackendBadge = (backend_id?: string) => {
+    if (!backend_id) return null;
+    
+    const badgeColor = backend_id === 'b1' ? 'bg-blue-100 text-blue-800' :
+                      backend_id === 'b2' ? 'bg-green-100 text-green-800' :
+                      backend_id === 'dev' ? 'bg-purple-100 text-purple-800' :
+                      'bg-gray-100 text-gray-800';
+    
+    const serverName = backend_id === 'b1' ? 'Pi Server' :
+                      backend_id === 'b2' ? 'Render/Cloud' :
+                      backend_id === 'dev' ? 'Development' :
+                      backend_id;
+    
+    return (
+      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${badgeColor}`}>
+        <Server className="w-3 h-3 mr-1" />
+        {serverName} ({backend_id})
+      </span>
+    );
   };
 
   const analysis = analyzeResults();
@@ -283,9 +368,10 @@ const APIDiagnosticTool = () => {
         </h1>
         
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-          <h3 className="font-semibold text-yellow-800 mb-2">🔍 Deep Diagnostic</h3>
+          <h3 className="font-semibold text-yellow-800 mb-2">🔍 Deep Diagnostic with Backend Identification</h3>
           <p className="text-yellow-700 text-sm">
-            This tool will test both direct backend connection and proxy routing to identify exactly where the communication is failing.
+            This tool will test both direct backend connection and proxy routing to identify exactly where the communication is failing. 
+            Now includes backend identification to show which server (Pi/b1 vs Render/b2) is handling requests.
           </p>
         </div>
 
@@ -330,7 +416,10 @@ const APIDiagnosticTool = () => {
           {Object.entries(diagnostics).map(([name, result]) => (
             <div key={name} className="bg-white rounded-lg shadow-md p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-gray-800">{name}</h3>
+                <div className="flex items-center space-x-3">
+                  <h3 className="font-semibold text-gray-800">{name}</h3>
+                  {getBackendBadge(result.backend_id)}
+                </div>
                 {getStatusIcon(result.status)}
               </div>
               
@@ -348,6 +437,13 @@ const APIDiagnosticTool = () => {
                   <div className="flex justify-between">
                     <span>Response Time:</span>
                     <span>{result.responseTime}ms</span>
+                  </div>
+                )}
+                
+                {result.backend_id && (
+                  <div className="flex justify-between">
+                    <span>Backend ID:</span>
+                    <span className="font-medium text-blue-600">{result.backend_id}</span>
                   </div>
                 )}
                 
@@ -403,6 +499,16 @@ const APIDiagnosticTool = () => {
               <li>Check OpenAI API key configuration</li>
               <li>Verify AI service initialization in backend</li>
               <li>Check backend logs for AI engine errors</li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="font-medium text-gray-700 mb-2">4. Backend Identification Issues:</h4>
+            <ul className="list-disc list-inside text-gray-600 ml-4 space-y-1">
+              <li>Check BACKEND_ID environment variable is set (b1=Pi, b2=Render)</li>
+              <li>Verify config.py has backend detection logic</li>
+              <li>Ensure AI responses include backend_id field</li>
+              <li>Test backend info endpoint: <code className="bg-gray-100 px-1 rounded">/api/proxy/api/backend-info</code></li>
             </ul>
           </div>
         </div>
