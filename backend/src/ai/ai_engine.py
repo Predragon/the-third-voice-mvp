@@ -5,6 +5,7 @@ Built to handle real human communication
 Updated for Peewee ORM and new structure
 Added Deep Analysis functionality
 Optimized prewarming removed - handled by main.py lifespan
+Added Backend Identification support
 """
 
 import hashlib
@@ -27,7 +28,7 @@ class AnalysisDepth(Enum):
 
 
 class AIResponse:
-    """AI Response data structure"""
+    """AI Response data structure with backend identification"""
     def __init__(self, 
                  transformed_message: str,
                  healing_score: int = 5,
@@ -43,7 +44,8 @@ class AIResponse:
                  suggested_responses: List[str] = None,
                  communication_patterns: List[str] = None,
                  relationship_dynamics: List[str] = None,
-                 alternatives: List[str] = None):    # <--- Added 'alternatives'
+                 alternatives: List[str] = None,
+                 backend_id: str = None):
         self.transformed_message = transformed_message
         self.healing_score = healing_score
         self.sentiment = sentiment
@@ -58,7 +60,31 @@ class AIResponse:
         self.suggested_responses = suggested_responses or []
         self.communication_patterns = communication_patterns or []
         self.relationship_dynamics = relationship_dynamics or []
-        self.alternatives = alternatives or []   # <--- Added initialization
+        self.alternatives = alternatives or []
+        self.backend_id = backend_id or settings.BACKEND_ID
+
+    def to_dict(self):
+        """Convert to dictionary for API responses"""
+        return {
+            "transformed_message": self.transformed_message,
+            "healing_score": self.healing_score,
+            "sentiment": self.sentiment,
+            "emotional_state": self.emotional_state,
+            "explanation": self.explanation,
+            "subtext": self.subtext,
+            "needs": self.needs,
+            "warnings": self.warnings,
+            "model_used": self.model_used,
+            "model_id": self.model_id,
+            "analysis_depth": self.analysis_depth,
+            "suggested_responses": self.suggested_responses,
+            "communication_patterns": self.communication_patterns,
+            "relationship_dynamics": self.relationship_dynamics,
+            "alternatives": self.alternatives,
+            "backend_id": self.backend_id,
+            "timestamp": datetime.now().isoformat()
+        }
+
 
 class AIEngine:
     """AI engine that works around content filtering with deep analysis capabilities"""
@@ -113,7 +139,7 @@ class AIEngine:
     async def _try_model(self, model_info: dict, system_prompt: str, user_prompt: str, max_tokens: int = 1000) -> Optional[dict]:
         """Try a specific model and return the result"""
         model_id = model_info["id"]
-        print(f"🤖 Trying model: {model_info['name']} ({model_id})")
+        print(f"🤖 Trying model: {model_info['name']} ({model_id}) on backend {settings.BACKEND_ID}")
         api_key = settings.OPENROUTER_API_KEY
         
         if not api_key:
@@ -159,7 +185,7 @@ class AIEngine:
             return
             
         try:
-            print("🔥 Lazy prewarming primary model...")
+            print(f"🔥 Lazy prewarming primary model on backend {settings.BACKEND_ID}...")
             primary_model = self.models[0]
             
             result = await self._try_model(
@@ -258,7 +284,7 @@ Respond with JSON:
                             user_id: str,
                             analysis_depth: str = AnalysisDepth.QUICK.value) -> AIResponse:
         """Process message with multiple model fallbacks and caching"""
-        print(f"🎙️ Processing message ({analysis_depth}): {message[:50]}...")
+        print(f"🎙️ Processing message ({analysis_depth}) on backend {settings.BACKEND_ID}: {message[:50]}...")
         
         # Lazy prewarm on first use
         await self.lazy_prewarm()
@@ -277,7 +303,8 @@ Respond with JSON:
                 explanation="Cached response",
                 model_used=cached_response.model,
                 model_id=cached_response.model,
-                analysis_depth=analysis_depth
+                analysis_depth=analysis_depth,
+                backend_id=settings.BACKEND_ID
             )
 
         # Prepare prompts based on message type and analysis depth
@@ -318,7 +345,7 @@ Respond with JSON:
                             print(f"⚠️ Failed to parse JSON from {model_info['name']}")
                             continue
                         
-                        # Create AI response object
+                        # Create AI response object with backend identification
                         ai_response = AIResponse(
                             transformed_message=ai_data.get("transformed_message", ""),
                             healing_score=int(ai_data.get("healing_score", 5)),
@@ -333,7 +360,9 @@ Respond with JSON:
                             analysis_depth=analysis_depth,
                             suggested_responses=ai_data.get("suggested_responses", []),
                             communication_patterns=ai_data.get("communication_patterns", []),
-                            relationship_dynamics=ai_data.get("relationship_dynamics", [])
+                            relationship_dynamics=ai_data.get("relationship_dynamics", []),
+                            alternatives=ai_data.get("alternatives", []),
+                            backend_id=settings.BACKEND_ID
                         )
                         
                         # For transform responses, ensure we have the main message
@@ -408,6 +437,7 @@ Respond with JSON:
                 needs=["safety", "support", "loyalty", "someone who understands", "emotional validation"],
                 model_used="Fallback System",
                 model_id="fallback",
+                backend_id=settings.BACKEND_ID,
                 suggested_responses=[
                     "I'm so sorry you're going through this. You must be terrified.",
                     "I can't imagine how stressful this is. What do you need most right now?",
@@ -425,6 +455,7 @@ Respond with JSON:
                 needs=["empathy", "validation", "connection", "shared understanding"],
                 model_used="Fallback System",
                 model_id="fallback",
+                backend_id=settings.BACKEND_ID,
                 suggested_responses=[
                     "Family pain cuts so deep. I'm here to listen whenever you need.",
                     "It's heartbreaking when family relationships fracture. How are you holding up?",
@@ -442,6 +473,7 @@ Respond with JSON:
                 needs=["validation", "emotional support", "someone to listen"],
                 model_used="Fallback System",
                 model_id="fallback",
+                backend_id=settings.BACKEND_ID,
                 suggested_responses=[
                     "I hear how much you're struggling. Thank you for telling me.",
                     "This sounds incredibly difficult. How can I help you through it?",
@@ -459,6 +491,7 @@ Respond with JSON:
             explanation="Transformed the raw emotions into a request for connection and support",
             model_used="Fallback System",
             model_id="fallback",
+            backend_id=settings.BACKEND_ID,
             alternatives=[
                 "I'm struggling with some heavy feelings and would appreciate your support if you have space to talk.",
                 "There's a lot on my mind right now and I could really use a listening ear if you're available."
