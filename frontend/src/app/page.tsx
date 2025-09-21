@@ -13,6 +13,8 @@ interface ApiResult {
   sentiment?: string;
   emotional_state?: string;
   model_used?: string;
+  backend_id?: string;  // Add this line
+  timestamp?: string;   // Add this line too
   subtext?: string;
   needs?: string[];
   analysis_depth?: string;
@@ -106,6 +108,7 @@ export default function TheThirdVoice() {
               sentiment: "neutral",
               emotional_state: "understanding",
               model_used: "Fallback Response",
+              backend_id: "unknown",  // Add fallback backend_id
               subtext: "Communication is important, and finding understanding is key.",
               needs: ["clarity", "understanding", "connection"],
               analysis_depth: useDeepAnalysis ? "deep" : "quick"
@@ -121,7 +124,8 @@ export default function TheThirdVoice() {
               sentiment: "positive",
               emotional_state: "collaborative",
               explanation: "This approach focuses on mutual respect and finding common ground in communication.",
-              model_used: "Fallback Response"
+              model_used: "Fallback Response",
+              backend_id: "unknown"  // Add fallback backend_id
             };
         
         setResult(fallback);
@@ -141,6 +145,7 @@ export default function TheThirdVoice() {
               sentiment: "neutral",
               emotional_state: "apologetic",
               model_used: "Network Fallback",
+              backend_id: "offline",  // Add fallback backend_id
               subtext: "Technical issues shouldn't stop meaningful communication.",
               needs: ["connection", "understanding", "patience"],
               analysis_depth: useDeepAnalysis ? "deep" : "quick"
@@ -155,7 +160,8 @@ export default function TheThirdVoice() {
               sentiment: "positive",
               emotional_state: "determined",
               explanation: "This acknowledges technical issues while emphasizing the importance of maintaining communication.",
-              model_used: "Network Fallback"
+              model_used: "Network Fallback",
+              backend_id: "offline"  // Add fallback backend_id
             };
       setResult(fallback);
       setStep(4);
@@ -463,6 +469,7 @@ export default function TheThirdVoice() {
                         {result.model_used && (
                           <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
                             {result.model_used}
+                            {result.backend_id && ` (${result.backend_id})`}
                           </span>
                         )}
                     </div>
@@ -655,6 +662,7 @@ export default function TheThirdVoice() {
                       {result.model_used && (
                         <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
                           {result.model_used}
+                          {result.backend_id && ` (${result.backend_id})`}
                         </span>
                       )}
                     </div>
