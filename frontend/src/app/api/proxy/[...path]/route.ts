@@ -14,7 +14,7 @@ const LOCAL_BACKEND = 'http://localhost:8000'; // Local development backend
 let isPrimaryHealthy = true;
 let lastChecked = 0;
 let backendSince = Date.now(); // tracks when backend last switched
-const CHECK_INTERVAL = 30 * 1000; // 30s
+const CHECK_INTERVAL = 120 * 1000; // 30s
 
 async function checkPrimaryHealth() {
   // In development, assume local backend is always healthy
