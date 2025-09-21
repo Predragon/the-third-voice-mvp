@@ -168,7 +168,7 @@ const APIDiagnosticTool = () => {
         const responseTime = Date.now() - startTime;
         
         let data;
-        let backend_id;
+        let backend_id: string | undefined;
         const contentType = response.headers.get('content-type');
         
         if (contentType && contentType.includes('application/json')) {
