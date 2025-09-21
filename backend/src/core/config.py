@@ -5,6 +5,7 @@ Environment-based settings with validation
 
 import os
 import secrets
+import platform
 from pathlib import Path
 from typing import List, Optional
 from pydantic_settings import BaseSettings
@@ -27,6 +28,11 @@ class Settings(BaseSettings):
     HOST: str = Field("0.0.0.0", description="Host to bind to")
     PORT: int = Field(8000, description="Port to bind to")
     LOG_LEVEL: str = Field("INFO", description="Logging level")
+
+    # Backend Identification
+    BACKEND_ID: Optional[str] = Field(None, description="Backend identifier (b1=Pi, b2=Render)")
+    HOSTNAME: str = Field(default_factory=platform.node, description="System hostname")
+    PLATFORM: str = Field(default_factory=platform.system, description="System platform")
 
     # Security
     SECRET_KEY: str = Field(..., description="Secret key for JWT")
@@ -123,6 +129,39 @@ class Settings(BaseSettings):
         if v.upper() not in allowed:
             raise ValueError(f'Log level must be one of: {allowed}')
         return v.upper()
+
+    @validator('BACKEND_ID', pre=True, always=True)
+    def set_backend_id(cls, v, values):
+        """Auto-detect backend ID if not explicitly set"""
+        if v:  # If explicitly set in environment, use it
+            return v
+            
+        # Auto-detection logic
+        if os.getenv('RENDER'):
+            return 'b2'  # Render deployment
+        elif os.getenv('HEROKU_APP_NAME'):
+            return 'heroku'
+        elif os.getenv('VERCEL'):
+            return 'vercel'
+        elif os.getenv('RAILWAY_ENVIRONMENT'):
+            return 'railway'
+        elif os.getenv('FLY_APP_NAME'):
+            return 'fly'
+        elif os.getenv('GOOGLE_CLOUD_PROJECT'):
+            return 'gcp'
+        elif os.getenv('AWS_LAMBDA_FUNCTION_NAME'):
+            return 'aws'
+        elif os.getenv('AZURE_FUNCTIONS_ENVIRONMENT'):
+            return 'azure'
+        else:
+            # Check hostname for Pi server or local development
+            hostname = platform.node().lower()
+            if any(keyword in hostname for keyword in ['pi', 'raspberry', 'thirdvoice']):
+                return 'b1'  # Pi server
+            elif any(keyword in hostname for keyword in ['local', 'dev', 'localhost']):
+                return 'dev'  # Development environment
+            else:
+                return 'b1'  # Default to Pi server
 
     @validator('SECRET_KEY', pre=True)
     def validate_secret_key(cls, v, values):
@@ -237,11 +276,36 @@ class Settings(BaseSettings):
     def get_rate_limit_per_minute(self, is_demo: bool = False) -> int:
         return self.RATE_LIMIT_DEMO_REQUESTS if is_demo else self.RATE_LIMIT_REQUESTS
 
+    def get_backend_info(self) -> dict:
+        """Get comprehensive backend information for debugging and monitoring"""
+        return {
+            'backend_id': self.BACKEND_ID,
+            'hostname': self.HOSTNAME,
+            'platform': self.PLATFORM,
+            'environment': self.ENVIRONMENT,
+            'debug': self.DEBUG,
+            'app_name': self.APP_NAME,
+            'detection_hints': {
+                'render': bool(os.getenv('RENDER')),
+                'heroku': bool(os.getenv('HEROKU_APP_NAME')),
+                'vercel': bool(os.getenv('VERCEL')),
+                'railway': bool(os.getenv('RAILWAY_ENVIRONMENT')),
+                'fly': bool(os.getenv('FLY_APP_NAME')),
+                'is_pi': any(keyword in self.HOSTNAME.lower() 
+                           for keyword in ['pi', 'raspberry', 'thirdvoice']),
+                'is_local': any(keyword in self.HOSTNAME.lower() 
+                              for keyword in ['local', 'dev', 'localhost'])
+            }
+        }
+
     def log_loaded_settings(self):
         """Log key settings on startup (without secrets)"""
         logger = logging.getLogger(__name__)
         logger.info(f"🚀 Starting {self.APP_NAME}")
         logger.info(f"Environment: {self.ENVIRONMENT}")
+        logger.info(f"Backend ID: {self.BACKEND_ID}")
+        logger.info(f"Hostname: {self.HOSTNAME}")
+        logger.info(f"Platform: {self.PLATFORM}")
         logger.info(f"Debug mode: {self.DEBUG}")
         logger.info(f"Host:Port: {self.HOST}:{self.PORT}")
         logger.info(f"Database: {self.DATABASE_PATH}")
