@@ -68,17 +68,13 @@ async def quick_transform(
             analysis_depth=analysis_depth
         )
         
-        result = {
+        # Get the full response with backend_id
+        result = ai_response.to_dict()
+        # Add any extra fields you need
+        result.update({
             "original": message_data.message,
-            "transformed_message": ai_response.transformed_message,
-            "healing_score": ai_response.healing_score or 8,
-            "sentiment": ai_response.sentiment,
-            "emotional_state": ai_response.emotional_state,
-            "explanation": ai_response.explanation,
-            "model_used": ai_response.model_used,
             "context": message_data.contact_context,
-            "analysis_depth": "deep" if message_data.use_deep_analysis else "quick"
-        }
+        })
         
         logger.info(f"Transform completed successfully")
         return result
@@ -177,22 +173,18 @@ async def quick_interpret(
             if ai_response.subtext:
                 interpretation += f" The deeper need appears to be: {ai_response.subtext.lower()}"
         
-        result = {
+        # Get the full response with backend_id
+        result = ai_response.to_dict()
+        # Add/override specific fields for the interpret response
+        result.update({
             "original": message_data.message,
             "interpretation": interpretation,
-            "explanation": interpretation,  # Ensure both fields are populated
+            "explanation": interpretation,
             "suggested_response": suggested_responses[0] if suggested_responses else "",
             "suggested_responses": suggested_responses,
-            "subtext": ai_response.subtext,
             "emotional_needs": ai_response.needs,
-            "warnings": ai_response.warnings,
-            "healing_score": ai_response.healing_score or 8,
-            "sentiment": ai_response.sentiment,
-            "emotional_state": ai_response.emotional_state,
-            "model_used": ai_response.model_used,
             "context": message_data.contact_context,
-            "analysis_depth": "deep" if message_data.use_deep_analysis else "quick"
-        }
+        })
         
         logger.info(f"Interpret completed successfully")
         return result
@@ -213,5 +205,6 @@ async def messages_health():
         "status": "healthy",
         "service": "messages",
         "ai_models_available": len(ai_engine.models),
-        "timestamp": datetime.now()
+        "timestamp": datetime.now(),
+        "backend_id": settings.BACKEND_ID
     }
