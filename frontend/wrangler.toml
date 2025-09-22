@@ -1,0 +1,6 @@
+name = "thirdvoice-frontend"
+compatibility_date = "2025-09-22"
+pages_build_output_dir = ".vercel/output"
+
+[vars]
+NEXT_PUBLIC_API_URL = "https://api.thethirdvoice.ai"
