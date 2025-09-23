@@ -1,4 +1,7 @@
+// app/not-found.tsx (cloudflare branch)
 'use client'
+
+export const dynamic = 'force-static';
 
 export default function NotFound() {
   return (
