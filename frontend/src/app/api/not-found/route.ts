@@ -1,5 +1,4 @@
 // app/api/not-found/route.ts (cloudflare branch)
-export const runtime = 'edge';
 
 export async function GET() {
   try {

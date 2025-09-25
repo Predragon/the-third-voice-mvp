@@ -1,7 +1,6 @@
 // src/app/api/proxy/[...path]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 
-export const runtime = 'edge';
 
 const isDev = process.env.NODE_ENV === 'development';
 
