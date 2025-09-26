@@ -1,9 +1,17 @@
 name = "thirdvoice-frontend"
-compatibility_date = "2025-09-22"
+compatibility_date = "2025-09-26"
 main = ".open-next/worker.js"
-
+compatibility_flags = ["nodejs_compat"]
 [vars]
 NEXT_PUBLIC_API_URL = "https://api.thethirdvoice.ai"
+
+
+#name = "thirdvoice-frontend"
+#compatibility_date = "2025-09-22"
+#main = ".open-next/worker.js"
+
+#[vars]
+#NEXT_PUBLIC_API_URL = "https://api.thethirdvoice.ai"
 
 
 
