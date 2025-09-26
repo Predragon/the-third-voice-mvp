@@ -9,9 +9,9 @@
     "test": "jest --watchAll=false --passWithNoTests",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
-    "cf:build": "npx opennextjs-cloudflare@latest",
-    "cf:deploy": "wrangler pages deploy .cloudflare --project-name=thirdvoice-mvp",
-    "cf:dev": "wrangler pages dev .cloudflare/index.js"
+    "cf:build": "npx @opennextjs/cloudflare build",
+    "cf:deploy": "npx wrangler deploy",
+    "cf:dev": "npx wrangler dev .open-next/worker.js"
   },
   "dependencies": {
     "autoprefixer": "^10.4.21",
@@ -29,12 +29,11 @@
     "@babel/preset-react": "^7.25.7",
     "@babel/preset-typescript": "^7.26.0",
     "@eslint/eslintrc": "^3.1.0",
-    "@opennextjs/cloudflare": "^1.8.3",
+    "@opennextjs/cloudflare": "^1.8.5",
     "@testing-library/jest-dom": "^6.6.2",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.5.2",
     "@types/jest": "^29.5.14",
-    "@types/next-pwa": "^5.6.9",
     "@types/node": "^20.17.5",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
