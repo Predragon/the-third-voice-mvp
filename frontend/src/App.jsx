@@ -2,7 +2,8 @@ import React, { useState, createContext, useContext, useEffect } from 'react';
 import { MessageSquare, Lightbulb, User, LogIn, Menu, X, Send, Sparkles, ArrowRight, Shield, Heart, Users } from 'lucide-react';
 
 // API Client
-const API_BASE = import.meta.env.DEV ? '/api' : 'https://api.thethirdvoice.ai';
+#const API_BASE = import.meta.env.DEV ? '/api' : 'https://api.thethirdvoice.ai';
+const API_BASE = import.meta.env.DEV ? '' : 'https://api.thethirdvoice.ai';
 
 class ThirdVoiceAPI {
   async quickTransform(message, contactContext = 'coparenting', useDeep = false) {
