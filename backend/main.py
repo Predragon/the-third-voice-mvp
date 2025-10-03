@@ -120,8 +120,12 @@ app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.get_cors_origins(),
-    allow_credentials=True,
+    allow_origins=[
+        "https://the-third-voice-mvp.pages.dev",
+        "https://thethirdvoice.ai",
+        "http://localhost:3000"
+    ],
+    allow_credentials=True,  # Can enable now that you're not using wildcard
     allow_methods=["*"],
     allow_headers=["*"],
 )
