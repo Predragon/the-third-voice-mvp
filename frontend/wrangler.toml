@@ -3,19 +3,3 @@ compatibility_date = "2024-01-01"
 
 [site]
 bucket = "./dist"
-index.html:
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="description" content="AI-powered communication assistant for co-parents. Transform messages and understand what they really mean." />
-    <meta name="theme-color" content="#2563eb" />
-    <title>The Third Voice - Co-Parenting Communication</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
-</html>
