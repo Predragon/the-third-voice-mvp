@@ -6,7 +6,7 @@ const API_BASE = 'https://api.thethirdvoice.ai';
 
 class ThirdVoiceAPI {
   async quickTransform(message, contactContext = 'coparenting', useDeep = false) {
-    const res = await fetch(`${API_BASE}/messages/quick-transform`, {
+    const res = await fetch(`${API_BASE}/api/messages/quick-transform`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -20,7 +20,7 @@ class ThirdVoiceAPI {
   }
 
   async quickInterpret(message, contactContext = 'coparenting', useDeep = false) {
-    const res = await fetch(`${API_BASE}/messages/quick-interpret`, {
+    const res = await fetch(`${API_BASE}/api/messages/quick-interpret`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
