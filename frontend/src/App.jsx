@@ -2,7 +2,6 @@ import React, { useState, createContext, useContext, useEffect } from 'react';
 import { MessageSquare, Lightbulb, User, LogIn, Menu, X, Send, Sparkles, ArrowRight, Shield, Heart, Users } from 'lucide-react';
 
 // API Client
-// const API_BASE = import.meta.env.DEV ? '/api' : 'https://api.thethirdvoice.ai';
 const API_BASE = import.meta.env.DEV ? '/api' : 'https://api.thethirdvoice.ai/api';
 
 class ThirdVoiceAPI {
@@ -235,6 +234,7 @@ function MainApp() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [copiedIndex, setCopiedIndex] = useState(null);
 
   const handleProcess = async () => {
     if (!message.trim()) return;
@@ -255,11 +255,16 @@ function MainApp() {
     }
   };
 
-  const handleCopy = async (text) => {
+  const handleCopy = async (text, index = null) => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      if (index !== null) {
+        setCopiedIndex(index);
+        setTimeout(() => setCopiedIndex(null), 2000);
+      } else {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
     } catch (err) {
       console.error('Copy failed', err);
     }
@@ -453,11 +458,14 @@ function MainApp() {
                     <div className="space-y-2">
                       {result.suggested_responses.map((resp, idx) => (
                         <div key={idx} className="flex items-start gap-2">
-                          <button
-                            onClick={() => handleCopy(resp)}
-                            className="flex-1 text-left p-3 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm text-gray-700 transition-colors"
-                          >
+                          <div className="flex-1 p-3 bg-gray-50 rounded-lg text-sm text-gray-700">
                             {resp}
+                          </div>
+                          <button
+                            onClick={() => handleCopy(resp, idx)}
+                            className="flex-shrink-0 px-3 py-2 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors font-medium"
+                          >
+                            {copiedIndex === idx ? '✓ Copied' : 'Copy'}
                           </button>
                         </div>
                       ))}
