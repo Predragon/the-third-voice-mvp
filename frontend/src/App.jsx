@@ -30,7 +30,7 @@ class ThirdVoiceAPI {
         
         const res = await fetch(url, {
           ...options,
-          signal: AbortSignal.timeout(20000) // 20 second timeout
+          signal: AbortSignal.timeout(40000) // 40 second timeout
         });
         
         if (!res.ok) {
