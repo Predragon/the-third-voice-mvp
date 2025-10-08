@@ -1,12 +1,62 @@
 import React, { useState, createContext, useContext, useEffect } from 'react';
 import { MessageSquare, Lightbulb, User, LogIn, Menu, X, Send, Sparkles, ArrowRight, Shield, Heart, Users } from 'lucide-react';
 
-// API Client
-const API_BASE = import.meta.env.DEV ? '/api' : 'https://api.thethirdvoice.ai/api';
+// API Client with automatic failover
+const API_BACKENDS = import.meta.env.DEV 
+  ? [''] // Development uses Vite proxy
+  : [
+      'https://api.thethirdvoice.ai',              // Pi primary
+      'https://the-third-voice-mvp.onrender.com'   // Render failover
+    ];
 
 class ThirdVoiceAPI {
+  constructor() {
+    this.currentBackendIndex = 0;
+    this.backends = API_BACKENDS;
+  }
+
+  async _fetchWithFallback(endpoint, options) {
+    const maxRetries = this.backends.length;
+    let lastError;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const backend = this.backends[this.currentBackendIndex];
+      const url = import.meta.env.DEV 
+        ? `/api${endpoint}`  // Proxy in dev
+        : `${backend}/api${endpoint}`;
+
+      try {
+        console.log(`Attempting ${backend || 'local proxy'} (attempt ${attempt + 1}/${maxRetries})`);
+        
+        const res = await fetch(url, {
+          ...options,
+          signal: AbortSignal.timeout(10000) // 10 second timeout
+        });
+        
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        
+        // Success! Keep using this backend
+        console.log(`✅ Success with ${backend || 'local proxy'}`);
+        return res.json();
+      } catch (err) {
+        console.warn(`❌ ${backend || 'local proxy'} failed:`, err.message);
+        lastError = err;
+        
+        // Try next backend
+        this.currentBackendIndex = (this.currentBackendIndex + 1) % this.backends.length;
+        
+        // If this was the last attempt, throw
+        if (attempt === maxRetries - 1) {
+          throw new Error(`All backends failed. Last error: ${lastError.message}`);
+        }
+      }
+    }
+  }
+
   async quickTransform(message, contactContext = 'coparenting', useDeep = false) {
-    const res = await fetch(`${API_BASE}/messages/quick-transform`, {
+    return this._fetchWithFallback('/messages/quick-transform', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -15,12 +65,10 @@ class ThirdVoiceAPI {
         use_deep_analysis: useDeep
       })
     });
-    if (!res.ok) throw new Error('Transform failed');
-    return res.json();
   }
 
   async quickInterpret(message, contactContext = 'coparenting', useDeep = false) {
-    const res = await fetch(`${API_BASE}/messages/quick-interpret`, {
+    return this._fetchWithFallback('/messages/quick-interpret', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -29,12 +77,10 @@ class ThirdVoiceAPI {
         use_deep_analysis: useDeep
       })
     });
-    if (!res.ok) throw new Error('Interpret failed');
-    return res.json();
   }
 
   async login(email, password) {
-    const res = await fetch(`${API_BASE}/auth/login`, {
+    const res = await fetch(`${this.backends[0] || ''}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
@@ -44,7 +90,7 @@ class ThirdVoiceAPI {
   }
 
   async startDemo() {
-    const res = await fetch(`${API_BASE}/auth/demo`, {
+    const res = await fetch(`${this.backends[0] || ''}/api/auth/demo`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
@@ -53,7 +99,7 @@ class ThirdVoiceAPI {
   }
 
   async register(email, password) {
-    const res = await fetch(`${API_BASE}/auth/register`, {
+    const res = await fetch(`${this.backends[0] || ''}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
