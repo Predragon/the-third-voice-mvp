@@ -1,13 +1,62 @@
 import React, { useState, createContext, useContext, useEffect } from 'react';
 import { MessageSquare, Lightbulb, User, LogIn, Menu, X, Send, Sparkles, ArrowRight, Shield, Heart, Users } from 'lucide-react';
 
-// API Client
-// Note: This targets a single backend URL as requested by the user.
-const API_BASE = import.meta.env.DEV ? '/api' : 'https://api.thethirdvoice.ai/api';
+// API Client with automatic failover
+const API_BACKENDS = import.meta.env.DEV 
+  ? [''] // Development uses Vite proxy
+  : [
+      'https://api.thethirdvoice.ai',              // Pi primary
+      'https://the-third-voice-mvp.onrender.com'   // Render failover
+    ];
 
 class ThirdVoiceAPI {
+  constructor() {
+    this.currentBackendIndex = 0;
+    this.backends = API_BACKENDS;
+  }
+
+  async _fetchWithFallback(endpoint, options) {
+    const maxRetries = this.backends.length;
+    let lastError;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const backend = this.backends[this.currentBackendIndex];
+      const url = import.meta.env.DEV 
+        ? `/api${endpoint}`  // Proxy in dev
+        : `${backend}/api${endpoint}`;
+
+      try {
+        console.log(`Attempting ${backend || 'local proxy'} (attempt ${attempt + 1}/${maxRetries})`);
+        
+        const res = await fetch(url, {
+          ...options,
+          signal: AbortSignal.timeout(10000) // 10 second timeout
+        });
+        
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        
+        // Success! Keep using this backend
+        console.log(`✅ Success with ${backend || 'local proxy'}`);
+        return res.json();
+      } catch (err) {
+        console.warn(`❌ ${backend || 'local proxy'} failed:`, err.message);
+        lastError = err;
+        
+        // Try next backend
+        this.currentBackendIndex = (this.currentBackendIndex + 1) % this.backends.length;
+        
+        // If this was the last attempt, throw
+        if (attempt === maxRetries - 1) {
+          throw new Error(`All backends failed. Last error: ${lastError.message}`);
+        }
+      }
+    }
+  }
+
   async quickTransform(message, contactContext = 'coparenting', useDeep = false) {
-    const res = await fetch(`${API_BASE}/messages/quick-transform`, {
+    return this._fetchWithFallback('/messages/quick-transform', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -16,12 +65,10 @@ class ThirdVoiceAPI {
         use_deep_analysis: useDeep
       })
     });
-    if (!res.ok) throw new Error(`Transform failed: HTTP ${res.status}`);
-    return res.json();
   }
 
   async quickInterpret(message, contactContext = 'coparenting', useDeep = false) {
-    const res = await fetch(`${API_BASE}/messages/quick-interpret`, {
+    return this._fetchWithFallback('/messages/quick-interpret', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -30,36 +77,34 @@ class ThirdVoiceAPI {
         use_deep_analysis: useDeep
       })
     });
-    if (!res.ok) throw new Error(`Interpret failed: HTTP ${res.status}`);
-    return res.json();
   }
 
   async login(email, password) {
-    const res = await fetch(`${API_BASE}/auth/login`, {
+    const res = await fetch(`${this.backends[0] || ''}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
-    if (!res.ok) throw new Error(`Login failed: HTTP ${res.status}`);
+    if (!res.ok) throw new Error('Login failed');
     return res.json();
   }
 
   async startDemo() {
-    const res = await fetch(`${API_BASE}/auth/demo`, {
+    const res = await fetch(`${this.backends[0] || ''}/api/auth/demo`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
-    if (!res.ok) throw new Error(`Demo start failed: HTTP ${res.status}`);
+    if (!res.ok) throw new Error('Demo start failed');
     return res.json();
   }
 
   async register(email, password) {
-    const res = await fetch(`${API_BASE}/auth/register`, {
+    const res = await fetch(`${this.backends[0] || ''}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
-    if (!res.ok) throw new Error(`Registration failed: HTTP ${res.status}`);
+    if (!res.ok) throw new Error('Registration failed');
     return res.json();
   }
 }
@@ -237,39 +282,6 @@ function MainApp() {
   const [copied, setCopied] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState(null);
 
-  // Robust clipboard function with fallback (essential for sandbox environments)
-  const safeCopy = (text) => {
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        return navigator.clipboard.writeText(text);
-      }
-      
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.style.position = 'fixed'; 
-      textarea.style.opacity = 0; 
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-      
-      try {
-        const successful = document.execCommand('copy');
-        if (!successful) {
-          throw new Error('document.execCommand failed.');
-        }
-      } catch (err) {
-        throw new Error('Fallback copy failed.');
-      } finally {
-        document.body.removeChild(textarea);
-      }
-      return Promise.resolve();
-    } catch (err) {
-      console.error('Copy attempt failed across all methods:', err);
-      return Promise.reject(err);
-    }
-  };
-
-
   const handleProcess = async () => {
     if (!message.trim()) return;
     
@@ -283,8 +295,7 @@ function MainApp() {
         : await api.quickInterpret(message, 'coparenting', useDeep);
       setResult(data);
     } catch (err) {
-      // API errors now contain the HTTP status and message
-      setError(err.message); 
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -292,7 +303,7 @@ function MainApp() {
 
   const handleCopy = async (text, index = null) => {
     try {
-      await safeCopy(text); // Use the robust copy function
+      await navigator.clipboard.writeText(text);
       if (index !== null) {
         setCopiedIndex(index);
         setTimeout(() => setCopiedIndex(null), 2000);
@@ -302,7 +313,6 @@ function MainApp() {
       }
     } catch (err) {
       console.error('Copy failed', err);
-      setError("Failed to copy text. Please copy manually."); // Notify user of copy failure
     }
   };
 
@@ -559,4 +569,3 @@ export default function App() {
     </AuthProvider>
   );
 }
-
