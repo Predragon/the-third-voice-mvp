@@ -8,7 +8,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.thethirdvoice.ai
 const LOCAL_API_URL = process.env.LOCAL_API_URL || "http://localhost:8000";
 
 const nextConfig: NextConfig = {
-  turbopack: false,   // 🔥 FIX: Force Webpack on Next 16
+  // ✔️ FIX: Turbopack must be an object, not boolean
+  turbopack: {},
 
   async rewrites() {
     if (isDev && !isVercel && !isCloudflare) {
@@ -31,18 +32,17 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: 'api.thethirdvoice.ai' },
       { protocol: 'http', hostname: 'localhost' },
-      { protocol: 'http', hostname: '127.0.0.1' }
+      { protocol: 'http', hostname: '127.0.0.1' },
     ],
   },
 
-  // ⚠️ Removed deprecated "eslint" block — Next 16 refuses it
+  // ❌ Removed: deprecated in Next 16
   // eslint: { ignoreDuringBuilds: true },
 
   webpack: (config, { isServer }) => {
     if (isCloudflare) {
       config.cache = false;
     }
-
     if (!isServer) {
       config.resolve = config.resolve || {};
       config.resolve.fallback = {
@@ -52,7 +52,6 @@ const nextConfig: NextConfig = {
         tls: false,
       };
     }
-
     return config;
   },
 };
@@ -63,7 +62,6 @@ export default withPWA({
   register: true,
   skipWaiting: true,
   buildExcludes: [/middleware-manifest\.json$/],
-
   runtimeCaching: [
     {
       urlPattern: /^https?.*/,
