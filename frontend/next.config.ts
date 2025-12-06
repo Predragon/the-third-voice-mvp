@@ -8,8 +8,9 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.thethirdvoice.ai
 const LOCAL_API_URL = process.env.LOCAL_API_URL || "http://localhost:8000";
 
 const nextConfig: NextConfig = {
+  turbopack: false,   // 🔥 FIX: Force Webpack on Next 16
+
   async rewrites() {
-    // Local development: use simple rewrites to local backend
     if (isDev && !isVercel && !isCloudflare) {
       return [
         {
@@ -18,8 +19,6 @@ const nextConfig: NextConfig = {
         },
       ];
     }
-    
-    // Production (Vercel/Cloudflare): let route.ts handle intelligent failover
     return [];
   },
 
@@ -29,17 +28,21 @@ const nextConfig: NextConfig = {
 
   images: {
     unoptimized: isCloudflare,
-    domains: ['localhost', 'api.thethirdvoice.ai', '127.0.0.1'],
+    remotePatterns: [
+      { protocol: 'https', hostname: 'api.thethirdvoice.ai' },
+      { protocol: 'http', hostname: 'localhost' },
+      { protocol: 'http', hostname: '127.0.0.1' }
+    ],
   },
 
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  // ⚠️ Removed deprecated "eslint" block — Next 16 refuses it
+  // eslint: { ignoreDuringBuilds: true },
 
   webpack: (config, { isServer }) => {
     if (isCloudflare) {
       config.cache = false;
     }
+
     if (!isServer) {
       config.resolve = config.resolve || {};
       config.resolve.fallback = {
@@ -49,6 +52,7 @@ const nextConfig: NextConfig = {
         tls: false,
       };
     }
+
     return config;
   },
 };
@@ -59,6 +63,7 @@ export default withPWA({
   register: true,
   skipWaiting: true,
   buildExcludes: [/middleware-manifest\.json$/],
+
   runtimeCaching: [
     {
       urlPattern: /^https?.*/,
