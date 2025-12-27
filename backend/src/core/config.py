@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(30, description="JWT access token expiry in minutes")
     DEMO_TOKEN_EXPIRE_HOURS: int = Field(24, description="Demo user token expiry in hours")
 
+    # Demo User (should be set via environment variables in production)
+    DEMO_EMAIL: str = Field("demo@thethirdvoice.ai", description="Demo user email")
+    DEMO_PASSWORD: str = Field("demo123", description="Demo user password")
+
     # CORS
     ALLOWED_ORIGINS: List[str] = Field(
         [

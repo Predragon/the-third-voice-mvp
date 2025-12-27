@@ -21,14 +21,6 @@ from ..core.config import settings
 class AuthManager:
     """FastAPI-compatible authentication manager with demo user support"""
 
-    # Demo user configuration
-    DEMO_USER = {
-        "email": "demo@thethirdvoice.ai",
-        "password": "demo123",
-        "name": "Demo User",
-        "id": "demo-user-001"
-    }
-
     def __init__(self, database_manager=None):
         self.db = database_manager
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -39,6 +31,16 @@ class AuthManager:
         self.ALGORITHM = "HS256"
         self.ACCESS_TOKEN_EXPIRE_MINUTES = getattr(settings, 'ACCESS_TOKEN_EXPIRE_MINUTES', 30)
         self.DEMO_TOKEN_EXPIRE_HOURS = getattr(settings, 'DEMO_TOKEN_EXPIRE_HOURS', 24)
+
+    @property
+    def DEMO_USER(self):
+        """Demo user configuration - loaded from environment via settings"""
+        return {
+            "email": getattr(settings, 'DEMO_EMAIL', 'demo@thethirdvoice.ai'),
+            "password": getattr(settings, 'DEMO_PASSWORD', 'demo123'),
+            "name": "Demo User",
+            "id": "demo-user-001"
+        }
 
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         """Verify a password against its hash"""
@@ -96,13 +98,25 @@ class AuthManager:
         if email == self.DEMO_USER["email"]:
             return await self._authenticate_demo_user(password)
 
-        # Regular user authentication (you'll need to implement user lookup)
-        # This would typically query your User table
+        # Regular user authentication - query database
         try:
-            # TODO: Implement user lookup from database
-            # user = await self.get_user_by_email(email)
-            # if user and self.verify_password(password, user.hashed_password):
-            #     return UserResponse.from_orm(user)
+            if not self.db:
+                print("Database manager not initialized")
+                return None
+
+            user_data = await self.db.get_user_by_email(email)
+            if user_data and self.verify_password(password, user_data["hashed_password"]):
+                if not user_data.get("is_active", True):
+                    print(f"User account deactivated: {email}")
+                    return None
+
+                return UserResponse(
+                    id=user_data["id"],
+                    email=user_data["email"],
+                    is_active=user_data["is_active"],
+                    created_at=user_data["created_at"],
+                    updated_at=user_data["updated_at"]
+                )
             return None
         except Exception as e:
             print(f"Authentication error: {str(e)}")
@@ -168,9 +182,10 @@ class AuthManager:
     async def _log_demo_usage(self, email: str, ip_address: Optional[str] = None):
         """Log demo usage for analytics"""
         try:
-            # If you have a demo usage table, log it here
-            # This would typically use your database manager
-            print(f"📊 Demo usage logged for {email} at {datetime.now()}")
+            if self.db:
+                await self.db.log_demo_usage(email, ip_address)
+            else:
+                print(f"📊 Demo usage logged for {email} at {datetime.now()}")
         except Exception as e:
             print(f"⚠️ Could not log demo usage: {str(e)}")
 
@@ -181,18 +196,31 @@ class AuthManager:
             return False, "Demo accounts cannot be registered. Please use a different email.", None
 
         try:
+            if not self.db:
+                return False, "Database not initialized", None
+
+            # Check if user already exists
+            existing_user = await self.db.get_user_by_email(user_data.email)
+            if existing_user:
+                return False, "Email already registered. Please login or use a different email.", None
+
             # Hash password
             hashed_password = self.get_password_hash(user_data.password)
 
-            # Create user in database (you'll need to implement this)
-            # user = User(
-            #     email=user_data.email,
-            #     hashed_password=hashed_password
-            # )
-            # saved_user = await self.db.create_user(user)
+            # Create user in database
+            user_data_result = await self.db.create_user(user_data.email, hashed_password)
 
-            # For now, return success (implement actual user creation)
-            return True, "Registration successful! Please verify your email.", None
+            if user_data_result:
+                user_response = UserResponse(
+                    id=user_data_result["id"],
+                    email=user_data_result["email"],
+                    is_active=user_data_result["is_active"],
+                    created_at=user_data_result["created_at"],
+                    updated_at=user_data_result["updated_at"]
+                )
+                return True, "Registration successful! Welcome to The Third Voice.", user_response
+
+            return False, "Registration failed. Please try again.", None
 
         except Exception as e:
             return False, f"Registration failed: {str(e)}", None
@@ -219,8 +247,17 @@ class AuthManager:
                     updated_at=datetime.now()
                 )
 
-            # Regular user lookup (implement based on your user storage)
-            # return await self.get_user_by_id(user_id)
+            # Regular user lookup from database
+            if self.db:
+                user_data = await self.db.get_user_by_id(user_id)
+                if user_data and user_data.get("is_active", True):
+                    return UserResponse(
+                        id=user_data["id"],
+                        email=user_data["email"],
+                        is_active=user_data["is_active"],
+                        created_at=user_data["created_at"],
+                        updated_at=user_data["updated_at"]
+                    )
             return None
 
         except HTTPException:
@@ -452,32 +489,8 @@ class FastAPIAuthManager(AuthManager):
                 detail="Cannot register with demo email. Please use a different email address."
             )
 
-        # Check if user already exists (implement user lookup)
-        # existing_user = await self.get_user_by_email(user_data.email)
-        # if existing_user:
-        #     raise HTTPException(
-        #         status_code=status.HTTP_400_BAD_REQUEST,
-        #         detail="Email already registered"
-        #     )
-
-        try:
-            # Hash password and create user
-            hashed_password = self.get_password_hash(user_data.password)
-
-            # TODO: Implement user creation in database
-            # new_user = User(
-            #     email=user_data.email,
-            #     hashed_password=hashed_password
-            # )
-            # saved_user = await self.db.create_user(new_user)
-
-            return True, "Registration successful!", None
-
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Registration failed: {str(e)}"
-            )
+        # Use the parent class method which now has full database support
+        return await self.register_user(user_data)
 
     async def logout_user(self, user: UserResponse):
         """Handle user logout"""
