@@ -40,6 +40,9 @@ export default defineConfig({
       workbox: {
         // Disable minification for Android build compatibility
         mode: 'development',
+        // Offline fallback
+        navigateFallback: '/offline.html',
+        navigateFallbackDenylist: [/^\/api/],
         // Cache strategies
         runtimeCaching: [
           {
@@ -65,9 +68,21 @@ export default defineConfig({
                 maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
               }
             }
+          },
+          {
+            // JS/CSS - Stale while revalidate
+            urlPattern: /\.(?:js|css)$/i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'static-cache',
+              expiration: {
+                maxEntries: 30,
+                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
+              }
+            }
           }
         ],
-        // Simplified precache
+        // Precache offline page and assets
         globPatterns: ['**/*.{html,ico,png}']
       }
     })

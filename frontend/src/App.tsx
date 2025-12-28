@@ -1,9 +1,10 @@
 import { useState, createContext, useContext, useEffect, ReactNode } from 'react';
-import { MessageSquare, Lightbulb, Send, Sparkles, ArrowRight, Shield, Heart, Users, History, LogIn, LogOut } from 'lucide-react';
+import { MessageSquare, Lightbulb, Send, Sparkles, ArrowRight, Shield, Heart, Users, History, LogIn, LogOut, BarChart3 } from 'lucide-react';
 import api from './api';
 import type { User, Contact, TransformResult, InterpretResult } from './types';
 import ContactList from './components/ContactList';
 import MessageHistory from './components/MessageHistory';
+import Dashboard from './components/Dashboard';
 
 // Types
 interface AuthContextType {
@@ -17,7 +18,7 @@ interface AuthContextType {
 }
 
 type ProcessResult = TransformResult | InterpretResult;
-type ViewType = 'landing' | 'app' | 'contacts' | 'history' | 'auth';
+type ViewType = 'landing' | 'app' | 'contacts' | 'history' | 'auth' | 'dashboard';
 
 // Auth Context
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -258,7 +259,7 @@ function LandingPage({ onTryDemo, onLogin }: { onTryDemo: () => void; onLogin: (
 }
 
 // Main App Interface
-function MainApp({ onViewHistory }: { onViewHistory: () => void }) {
+function MainApp({ onViewHistory, onViewDashboard }: { onViewHistory: () => void; onViewDashboard: () => void }) {
   const { user, isDemo, logout } = useAuth();
   const [message, setMessage] = useState('');
   const [mode, setMode] = useState<'transform' | 'interpret'>('transform');
@@ -329,6 +330,13 @@ function MainApp({ onViewHistory }: { onViewHistory: () => void }) {
           <div className="flex items-center gap-2">
             {user && (
               <>
+                <button
+                  onClick={onViewDashboard}
+                  className="p-2 text-gray-600 hover:text-blue-600 hover:bg-white rounded-lg transition-colors"
+                  title="Dashboard"
+                >
+                  <BarChart3 className="w-5 h-5" />
+                </button>
                 <button
                   onClick={onViewHistory}
                   className="p-2 text-gray-600 hover:text-blue-600 hover:bg-white rounded-lg transition-colors"
@@ -565,7 +573,10 @@ function AppContent({
     case 'app':
       return (
         <>
-          <MainApp onViewHistory={() => setCurrentView('contacts')} />
+          <MainApp
+            onViewHistory={() => setCurrentView('contacts')}
+            onViewDashboard={() => setCurrentView('dashboard')}
+          />
           <button
             onClick={() => setCurrentView('landing')}
             className="fixed bottom-4 left-4 bg-white text-gray-700 px-4 py-2 rounded-full shadow-lg hover:shadow-xl transition-shadow text-sm font-medium"
@@ -573,6 +584,17 @@ function AppContent({
             ← Back
           </button>
         </>
+      );
+
+    case 'dashboard':
+      return (
+        <Dashboard
+          onBack={() => setCurrentView('app')}
+          onViewContact={(contact) => {
+            setSelectedContact(contact);
+            setCurrentView('history');
+          }}
+        />
       );
 
     case 'contacts':
