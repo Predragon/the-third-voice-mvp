@@ -38,6 +38,8 @@ export default defineConfig({
         ]
       },
       workbox: {
+        // Disable minification for Android build compatibility
+        mode: 'development',
         // Cache strategies
         runtimeCaching: [
           {
@@ -47,10 +49,9 @@ export default defineConfig({
             options: {
               cacheName: 'api-cache',
               expiration: {
-                maxEntries: 100,
+                maxEntries: 50,
                 maxAgeSeconds: 60 * 60 * 24 // 24 hours
-              },
-              networkTimeoutSeconds: 10
+              }
             }
           },
           {
@@ -60,26 +61,14 @@ export default defineConfig({
             options: {
               cacheName: 'image-cache',
               expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
-              }
-            }
-          },
-          {
-            // Static assets - Cache first
-            urlPattern: /\.(?:js|css|woff2?)$/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'static-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
+                maxEntries: 30,
+                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
               }
             }
           }
         ],
-        // Precache all build assets
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}']
+        // Simplified precache
+        globPatterns: ['**/*.{html,ico,png}']
       }
     })
   ],
