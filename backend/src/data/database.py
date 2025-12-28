@@ -794,8 +794,26 @@ async def get_database_manager() -> DatabaseManager:
     return db_manager
 
 
-# Global instance
-db_manager = DatabaseManager()
+# ========================
+# Database Factory
+# ========================
+
+def get_db_manager():
+    """
+    Factory function to get the appropriate database manager.
+    Returns SupabaseManager when USE_SUPABASE=True, otherwise DatabaseManager (SQLite).
+    """
+    if settings.USE_SUPABASE:
+        from .supabase_client import supabase_manager
+        print("✅ Using Supabase database")
+        return supabase_manager
+    else:
+        print("✅ Using SQLite database")
+        return DatabaseManager()
+
+
+# Global instance - uses factory to determine backend
+db_manager = get_db_manager()
 
 # Utility functions for FastAPI routes
 async def get_user_contacts_list(user_id: str) -> List[ContactResponse]:

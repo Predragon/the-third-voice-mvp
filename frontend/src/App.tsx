@@ -1,12 +1,96 @@
-import { MessageSquare, Lightbulb, User, LogIn, Menu, X, Send, Sparkles, ArrowRight, Shield, Heart, Users } from 'lucide-react';
+import { useState, createContext, useContext, useEffect, ReactNode } from 'react';
+import { MessageSquare, Lightbulb, Send, Sparkles, ArrowRight, Shield, Heart, Users } from 'lucide-react';
 
-// API Client
-// Note: This targets a single backend URL as requested by the user.
-const API_BASE = import.meta.env.DEV ? '/api' : 'https://api.thethirdvoice.ai/api';
+// Types
+interface User {
+  id: string;
+  email: string;
+  is_active: boolean;
+}
+
+interface AuthContextType {
+  user: User | null;
+  token: string | null;
+  isDemo: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  startDemo: () => Promise<void>;
+  logout: () => void;
+}
+
+interface TransformResult {
+  transformed_message: string;
+  explanation?: string;
+  healing_score?: number;
+  model_used?: string;
+  backend_id?: string;
+  analysis_depth?: string;
+}
+
+interface InterpretResult {
+  interpretation?: string;
+  explanation?: string;
+  suggested_responses?: string[];
+  emotional_needs?: string[];
+  model_used?: string;
+  backend_id?: string;
+  analysis_depth?: string;
+}
+
+type ProcessResult = TransformResult | InterpretResult;
+
+// API Client with automatic failover
+const API_BACKENDS = import.meta.env.DEV
+  ? [''] // Development uses Vite proxy
+  : [
+      'https://api.thethirdvoice.ai',              // Pi primary
+      'https://the-third-voice-mvp.onrender.com'   // Render failover
+    ];
 
 class ThirdVoiceAPI {
-  async quickTransform(message, contactContext = 'coparenting', useDeep = false) {
-    const res = await fetch(`${API_BASE}/messages/quick-transform`, {
+  private currentBackendIndex = 0;
+  private backends = API_BACKENDS;
+
+  private async _fetchWithFallback<T>(endpoint: string, options: RequestInit): Promise<T> {
+    const maxRetries = this.backends.length;
+    let lastError: Error = new Error('No backends available');
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const backend = this.backends[this.currentBackendIndex];
+      const url = import.meta.env.DEV
+        ? `/api${endpoint}`  // Proxy in dev
+        : `${backend}/api${endpoint}`;
+
+      try {
+        console.log(`Attempting ${backend || 'local proxy'} (attempt ${attempt + 1}/${maxRetries})`);
+
+        const res = await fetch(url, {
+          ...options,
+          signal: AbortSignal.timeout(40000) // 40 second timeout
+        });
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+
+        console.log(`✅ Success with ${backend || 'local proxy'}`);
+        return res.json();
+      } catch (err) {
+        const error = err as Error;
+        console.warn(`❌ ${backend || 'local proxy'} failed:`, error.message);
+        lastError = error;
+
+        this.currentBackendIndex = (this.currentBackendIndex + 1) % this.backends.length;
+
+        if (attempt === maxRetries - 1) {
+          throw new Error(`All backends failed. Last error: ${lastError.message}`);
+        }
+      }
+    }
+    throw lastError;
+  }
+
+  async quickTransform(message: string, contactContext = 'coparenting', useDeep = false): Promise<TransformResult> {
+    return this._fetchWithFallback<TransformResult>('/messages/quick-transform', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -15,12 +99,10 @@ class ThirdVoiceAPI {
         use_deep_analysis: useDeep
       })
     });
-    if (!res.ok) throw new Error(`Transform failed: HTTP ${res.status}`);
-    return res.json();
   }
 
-  async quickInterpret(message, contactContext = 'coparenting', useDeep = false) {
-    const res = await fetch(`${API_BASE}/messages/quick-interpret`, {
+  async quickInterpret(message: string, contactContext = 'coparenting', useDeep = false): Promise<InterpretResult> {
+    return this._fetchWithFallback<InterpretResult>('/messages/quick-interpret', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -29,36 +111,34 @@ class ThirdVoiceAPI {
         use_deep_analysis: useDeep
       })
     });
-    if (!res.ok) throw new Error(`Interpret failed: HTTP ${res.status}`);
-    return res.json();
   }
 
-  async login(email, password) {
-    const res = await fetch(`${API_BASE}/auth/login`, {
+  async login(email: string, password: string): Promise<{ access_token: string; user: User }> {
+    const res = await fetch(`${this.backends[0] || ''}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
-    if (!res.ok) throw new Error(`Login failed: HTTP ${res.status}`);
+    if (!res.ok) throw new Error('Login failed');
     return res.json();
   }
 
-  async startDemo() {
-    const res = await fetch(`${API_BASE}/auth/demo`, {
+  async startDemo(): Promise<{ access_token: string; user: User }> {
+    const res = await fetch(`${this.backends[0] || ''}/api/auth/demo`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
-    if (!res.ok) throw new Error(`Demo start failed: HTTP ${res.status}`);
+    if (!res.ok) throw new Error('Demo start failed');
     return res.json();
   }
 
-  async register(email, password) {
-    const res = await fetch(`${API_BASE}/auth/register`, {
+  async register(email: string, password: string): Promise<{ access_token: string; user: User }> {
+    const res = await fetch(`${this.backends[0] || ''}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
-    if (!res.ok) throw new Error(`Registration failed: HTTP ${res.status}`);
+    if (!res.ok) throw new Error('Registration failed');
     return res.json();
   }
 }
@@ -66,18 +146,22 @@ class ThirdVoiceAPI {
 const api = new ThirdVoiceAPI();
 
 // Auth Context
-const AuthContext = createContext(null);
+const AuthContext = createContext<AuthContextType | null>(null);
 
-function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+function AuthProvider({ children }: AuthProviderProps) {
+  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [isDemo, setIsDemo] = useState(false);
 
   useEffect(() => {
     const savedToken = localStorage.getItem('thirdvoice_token');
     const savedUser = localStorage.getItem('thirdvoice_user');
     const savedIsDemo = localStorage.getItem('thirdvoice_is_demo') === 'true';
-    
+
     if (savedToken && savedUser) {
       setToken(savedToken);
       setUser(JSON.parse(savedUser));
@@ -85,7 +169,7 @@ function AuthProvider({ children }) {
     }
   }, []);
 
-  const login = async (email, password) => {
+  const login = async (email: string, password: string) => {
     const data = await api.login(email, password);
     setToken(data.access_token);
     setUser(data.user);
@@ -121,12 +205,21 @@ function AuthProvider({ children }) {
   );
 }
 
-function useAuth() {
-  return useContext(AuthContext);
+function useAuth(): AuthContextType {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 }
 
 // Landing Page
-function LandingPage({ onGetStarted, onTryDemo }) {
+interface LandingPageProps {
+  onGetStarted: () => void;
+  onTryDemo: () => void;
+}
+
+function LandingPage({ onTryDemo }: LandingPageProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
       {/* Hero */}
@@ -228,70 +321,36 @@ function LandingPage({ onGetStarted, onTryDemo }) {
 // Main App Interface
 function MainApp() {
   const [message, setMessage] = useState('');
-  const [mode, setMode] = useState('transform');
+  const [mode, setMode] = useState<'transform' | 'interpret'>('transform');
   const [useDeep, setUseDeep] = useState(false);
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState<ProcessResult | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [copiedIndex, setCopiedIndex] = useState(null);
-
-  // Robust clipboard function with fallback (essential for sandbox environments)
-  const safeCopy = (text) => {
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        return navigator.clipboard.writeText(text);
-      }
-      
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.style.position = 'fixed'; 
-      textarea.style.opacity = 0; 
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-      
-      try {
-        const successful = document.execCommand('copy');
-        if (!successful) {
-          throw new Error('document.execCommand failed.');
-        }
-      } catch (err) {
-        throw new Error('Fallback copy failed.');
-      } finally {
-        document.body.removeChild(textarea);
-      }
-      return Promise.resolve();
-    } catch (err) {
-      console.error('Copy attempt failed across all methods:', err);
-      return Promise.reject(err);
-    }
-  };
-
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   const handleProcess = async () => {
     if (!message.trim()) return;
-    
+
     setLoading(true);
     setError(null);
     setResult(null);
-    
+
     try {
       const data = mode === 'transform'
         ? await api.quickTransform(message, 'coparenting', useDeep)
         : await api.quickInterpret(message, 'coparenting', useDeep);
       setResult(data);
     } catch (err) {
-      // API errors now contain the HTTP status and message
-      setError(err.message); 
+      setError((err as Error).message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCopy = async (text, index = null) => {
+  const handleCopy = async (text: string, index: number | null = null) => {
     try {
-      await safeCopy(text); // Use the robust copy function
+      await navigator.clipboard.writeText(text);
       if (index !== null) {
         setCopiedIndex(index);
         setTimeout(() => setCopiedIndex(null), 2000);
@@ -301,7 +360,6 @@ function MainApp() {
       }
     } catch (err) {
       console.error('Copy failed', err);
-      setError("Failed to copy text. Please copy manually."); // Notify user of copy failure
     }
   };
 
@@ -309,6 +367,15 @@ function MainApp() {
     setMessage('');
     setResult(null);
     setError(null);
+  };
+
+  // Type guards
+  const isTransformResult = (r: ProcessResult): r is TransformResult => {
+    return 'transformed_message' in r;
+  };
+
+  const isInterpretResult = (r: ProcessResult): r is InterpretResult => {
+    return 'suggested_responses' in r || 'interpretation' in r;
   };
 
   return (
@@ -349,9 +416,9 @@ function MainApp() {
               Interpret
             </button>
           </div>
-          
+
           <p className="text-sm text-gray-600 text-center">
-            {mode === 'transform' 
+            {mode === 'transform'
               ? 'Rewrite your message to be more constructive'
               : 'Understand what they really mean and get response ideas'
             }
@@ -373,7 +440,7 @@ function MainApp() {
             }
             className="w-full h-32 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
           />
-          
+
           {/* Analysis Depth Toggle */}
           <div className="mt-4 flex items-center justify-between">
             <label className="flex items-center gap-2 cursor-pointer">
@@ -427,7 +494,7 @@ function MainApp() {
         {/* Results */}
         {result && (
           <div className="mt-6 space-y-4">
-            {mode === 'transform' ? (
+            {mode === 'transform' && isTransformResult(result) ? (
               <div className="bg-white rounded-lg p-6 shadow-sm">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-gray-900">Transformed Message:</h3>
@@ -441,7 +508,7 @@ function MainApp() {
                 <p className="text-gray-800 leading-relaxed mb-4 p-4 bg-blue-50 rounded-lg">
                   {result.transformed_message}
                 </p>
-                
+
                 {result.model_used && (
                   <div className="text-xs text-gray-500 mb-3 border-t pt-3">
                     <span>AI Model: {result.model_used}</span>
@@ -449,15 +516,15 @@ function MainApp() {
                     {result.analysis_depth && <span> • {result.analysis_depth} analysis</span>}
                   </div>
                 )}
-                
+
                 {result.explanation && (
                   <div className="border-t pt-4">
                     <h4 className="text-sm font-semibold text-gray-700 mb-2">Why this helps:</h4>
                     <p className="text-sm text-gray-600">{result.explanation}</p>
                   </div>
                 )}
-                
-                {result.healing_score !== null && (
+
+                {result.healing_score !== undefined && result.healing_score !== null && (
                   <div className="mt-4 flex items-center gap-2">
                     <span className="text-sm text-gray-600">Healing score:</span>
                     <div className="flex-1 bg-gray-200 rounded-full h-2">
@@ -472,13 +539,13 @@ function MainApp() {
                   </div>
                 )}
               </div>
-            ) : (
+            ) : isInterpretResult(result) ? (
               <div className="bg-white rounded-lg p-6 shadow-sm">
                 <h3 className="font-semibold text-gray-900 mb-3">What they really mean:</h3>
                 <p className="text-gray-800 leading-relaxed mb-4 p-4 bg-green-50 rounded-lg">
                   {result.interpretation || result.explanation}
                 </p>
-                
+
                 {result.model_used && (
                   <div className="text-xs text-gray-500 mb-3 border-t pt-3">
                     <span>AI Model: {result.model_used}</span>
@@ -486,7 +553,7 @@ function MainApp() {
                     {result.analysis_depth && <span> • {result.analysis_depth} analysis</span>}
                   </div>
                 )}
-                
+
                 {result.suggested_responses && result.suggested_responses.length > 0 && (
                   <div className="border-t pt-4">
                     <h4 className="text-sm font-semibold text-gray-700 mb-3">Suggested responses:</h4>
@@ -507,7 +574,7 @@ function MainApp() {
                     </div>
                   </div>
                 )}
-                
+
                 {result.emotional_needs && result.emotional_needs.length > 0 && (
                   <div className="border-t pt-4 mt-4">
                     <h4 className="text-sm font-semibold text-gray-700 mb-2">They need:</h4>
@@ -521,7 +588,7 @@ function MainApp() {
                   </div>
                 )}
               </div>
-            )}
+            ) : null}
           </div>
         )}
       </div>
@@ -531,7 +598,7 @@ function MainApp() {
 
 // Main App Component
 export default function App() {
-  const [currentView, setCurrentView] = useState('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'app'>('landing');
 
   return (
     <AuthProvider>
@@ -544,7 +611,7 @@ export default function App() {
         ) : (
           <MainApp />
         )}
-        
+
         {/* Back to Landing */}
         {currentView === 'app' && (
           <button
@@ -559,3 +626,5 @@ export default function App() {
   );
 }
 
+// Export useAuth for other components
+export { useAuth };

@@ -57,9 +57,14 @@ class Settings(BaseSettings):
         description="Allowed hosts for production"
     )
 
-    # Database
+    # Database (SQLite fallback)
     DATABASE_PATH: str = Field("thirdvoice.db", description="SQLite database path")
     CACHE_EXPIRY_DAYS: int = Field(7, description="AI response cache expiry in days")
+
+    # Supabase (Production Database)
+    SUPABASE_URL: Optional[str] = Field(None, description="Supabase project URL")
+    SUPABASE_KEY: Optional[str] = Field(None, description="Supabase anon/service key")
+    USE_SUPABASE: bool = Field(False, description="Use Supabase instead of SQLite")
 
     # AI Configuration
     OPENROUTER_API_KEY: Optional[str] = Field(None, description="OpenRouter API key")
