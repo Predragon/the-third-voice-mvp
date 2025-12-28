@@ -26,7 +26,8 @@ from src.core.config import settings, setup_logging_level, get_uvicorn_config
 from src.data.database import db_manager
 from src.ai.ai_engine import ai_engine
 from src.data.peewee_models import create_tables
-from src.api.routes import contacts, messages, feedback, health
+from src.api.routes import auth, contacts, messages, feedback, health
+from src.auth.auth_manager import setup_auth_manager_with_db
 from src.core.exceptions import AppException, ValidationException
 from src.data.schemas import HealthCheck, ErrorResponse
 
@@ -78,6 +79,10 @@ async def lifespan(app: FastAPI):
         # Initialize database and tables
         create_tables()
         logger.info("✅ Database initialized")
+
+        # Connect auth manager to database
+        setup_auth_manager_with_db(db_manager)
+        logger.info("✅ Auth manager connected to database")
 
         # AI engine ready
         logger.info("✅ AI engine ready")
@@ -182,7 +187,7 @@ async def general_exception_handler(request: Request, exc: Exception):
 # ------------------------
 # Include API routers
 # ------------------------
-# app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(contacts.router, prefix="/api/contacts", tags=["Contacts"])
 app.include_router(messages.router, prefix="/api/messages", tags=["Messages"])
 app.include_router(feedback.router, prefix="/api/feedback", tags=["Feedback"])
@@ -206,7 +211,7 @@ async def root(request: Request):
         "contexts": ["romantic", "coparenting", "family", "workplace", "friends"],
         "docs": "/docs",
         "health": "/api/health",
-      #  "demo": "/api/auth/demo",
+        "demo": "/api/auth/demo",
         "timestamp": datetime.now()
     }
 

@@ -1,10 +1,10 @@
 """
 Messages API routes for The Third Voice AI
 AI-powered message processing and conversation management
-Authentication removed for MVP simplicity
+Optional authentication - saves to database when authenticated
 """
 
-from fastapi import APIRouter, HTTPException, status, Request, BackgroundTasks
+from fastapi import APIRouter, HTTPException, status, Request, BackgroundTasks, Depends
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from typing import List, Dict, Any, Optional
@@ -14,8 +14,11 @@ from datetime import datetime
 
 from ...data.schemas import (
     MessageType,
-    SentimentType
+    SentimentType,
+    MessageCreate,
+    AIResponse
 )
+from ...data.database import db_manager
 from ...ai.ai_engine import ai_engine, AnalysisDepth
 from ...core.exceptions import (
     ValidationException,
@@ -23,6 +26,8 @@ from ...core.exceptions import (
     validate_message_content
 )
 from ...core.config import settings
+from ...auth.auth_manager import get_current_user_optional
+from ...data.schemas import UserResponse
 from pydantic import BaseModel
 
 # Setup
@@ -42,43 +47,70 @@ class QuickMessageRequest(BaseModel):
 @limiter.limit("50/minute")
 async def quick_transform(
     request: Request,
-    message_data: QuickMessageRequest
+    message_data: QuickMessageRequest,
+    current_user: Optional[UserResponse] = Depends(get_current_user_optional)
 ) -> Dict[str, Any]:
     """
-    Quick message transformation without authentication
-    
-    Transforms messages to be more constructive and healing
+    Quick message transformation with optional authentication
+
+    Transforms messages to be more constructive and healing.
+    If authenticated, saves to database for history tracking.
     """
     try:
-        logger.info(f"Quick transform request: {message_data.message[:50]}... (Deep analysis: {message_data.use_deep_analysis})")
-        
+        user_id = current_user.id if current_user else "anonymous"
+        logger.info(f"Quick transform request from {user_id}: {message_data.message[:50]}... (Deep analysis: {message_data.use_deep_analysis})")
+
         # Validate message
         validate_message_content(message_data.message)
-        
+
         # Determine analysis depth
         analysis_depth = AnalysisDepth.DEEP if message_data.use_deep_analysis else AnalysisDepth.QUICK
-        
+
         # Process with AI
         ai_response = await ai_engine.process_message(
             message=message_data.message,
             contact_context=message_data.contact_context,
             message_type=MessageType.TRANSFORM.value,
-            contact_id="anonymous",
-            user_id="anonymous",
+            contact_id=message_data.contact_name or "anonymous",
+            user_id=user_id,
             analysis_depth=analysis_depth
         )
-        
+
+        # Save to database if user is authenticated
+        if current_user:
+            try:
+                message_create = MessageCreate(
+                    contact_id=message_data.contact_name or "default",
+                    contact_name=message_data.contact_name or "Co-parent",
+                    type=MessageType.TRANSFORM,
+                    original=message_data.message
+                )
+                # Convert AI response for saving
+                ai_response_for_db = AIResponse(
+                    transformed_message=ai_response.transformed_message,
+                    healing_score=ai_response.healing_score,
+                    sentiment=ai_response.sentiment,
+                    emotional_state=ai_response.emotional_state,
+                    explanation=ai_response.explanation,
+                    model_used=ai_response.model_used
+                )
+                await db_manager.save_message(message_create, user_id, ai_response_for_db)
+                logger.info(f"Message saved for user {user_id}")
+            except Exception as save_error:
+                logger.warning(f"Could not save message: {save_error}")
+
         # Get the full response with backend_id
         result = ai_response.to_dict()
         # Add any extra fields you need
         result.update({
             "original": message_data.message,
             "context": message_data.contact_context,
+            "saved": current_user is not None
         })
-        
+
         logger.info(f"Transform completed successfully")
         return result
-        
+
     except ValidationException:
         raise
     except Exception as e:
@@ -92,29 +124,32 @@ async def quick_transform(
 @limiter.limit("50/minute")
 async def quick_interpret(
     request: Request,
-    message_data: QuickMessageRequest
+    message_data: QuickMessageRequest,
+    current_user: Optional[UserResponse] = Depends(get_current_user_optional)
 ) -> Dict[str, Any]:
     """
-    Quick message interpretation without authentication
-    
-    Helps understand what someone really means and suggests responses
+    Quick message interpretation with optional authentication
+
+    Helps understand what someone really means and suggests responses.
+    If authenticated, saves to database for history tracking.
     """
     try:
-        logger.info(f"Quick interpret request: {message_data.message[:50]}... (Deep analysis: {message_data.use_deep_analysis})")
-        
+        user_id = current_user.id if current_user else "anonymous"
+        logger.info(f"Quick interpret request from {user_id}: {message_data.message[:50]}... (Deep analysis: {message_data.use_deep_analysis})")
+
         # Validate message
         validate_message_content(message_data.message)
-        
+
         # Determine analysis depth
         analysis_depth = AnalysisDepth.DEEP if message_data.use_deep_analysis else AnalysisDepth.QUICK
-        
+
         # Process with AI
         ai_response = await ai_engine.process_message(
             message=message_data.message,
             contact_context=message_data.contact_context,
             message_type=MessageType.INTERPRET.value,
-            contact_id="anonymous",
-            user_id="anonymous",
+            contact_id=message_data.contact_name or "anonymous",
+            user_id=user_id,
             analysis_depth=analysis_depth
         )
         
@@ -173,6 +208,29 @@ async def quick_interpret(
             if ai_response.subtext:
                 interpretation += f" The deeper need appears to be: {ai_response.subtext.lower()}"
         
+        # Save to database if user is authenticated
+        if current_user:
+            try:
+                message_create = MessageCreate(
+                    contact_id=message_data.contact_name or "default",
+                    contact_name=message_data.contact_name or "Co-parent",
+                    type=MessageType.INTERPRET,
+                    original=message_data.message
+                )
+                # Convert AI response for saving
+                ai_response_for_db = AIResponse(
+                    transformed_message=interpretation,
+                    healing_score=ai_response.healing_score,
+                    sentiment=ai_response.sentiment,
+                    emotional_state=ai_response.emotional_state,
+                    explanation=interpretation,
+                    model_used=ai_response.model_used
+                )
+                await db_manager.save_message(message_create, user_id, ai_response_for_db)
+                logger.info(f"Interpretation saved for user {user_id}")
+            except Exception as save_error:
+                logger.warning(f"Could not save interpretation: {save_error}")
+
         # Get the full response with backend_id
         result = ai_response.to_dict()
         # Add/override specific fields for the interpret response
@@ -184,11 +242,12 @@ async def quick_interpret(
             "suggested_responses": suggested_responses,
             "emotional_needs": ai_response.needs,
             "context": message_data.contact_context,
+            "saved": current_user is not None
         })
-        
+
         logger.info(f"Interpret completed successfully")
         return result
-        
+
     except ValidationException:
         raise
     except Exception as e:

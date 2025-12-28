@@ -30,10 +30,12 @@ from .models import (
 
 # Import Peewee models for database operations (your existing ones)
 from .peewee_models import (
+    User as PeeweeUser,
     Contact as PeeweeContact,
-    Message as PeeweeMessage, 
+    Message as PeeweeMessage,
     AIResponseCache as PeeweeAIResponseCache,
     Feedback as PeeweeFeedback,
+    DemoUsage as PeeweeDemoUsage,
     get_db_context
 )
 from ..core.config import settings
@@ -673,6 +675,117 @@ class DatabaseManager:
                 "error": str(e),
                 "timestamp": datetime.now()
             }
+
+    # ========================
+    # User Management Methods
+    # ========================
+
+    async def get_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+        """Get user by email address"""
+        try:
+            with get_db_context():
+                user = PeeweeUser.get_or_none(PeeweeUser.email == email)
+                if user:
+                    return {
+                        "id": user.id,
+                        "email": user.email,
+                        "hashed_password": user.hashed_password,
+                        "is_active": user.is_active,
+                        "created_at": user.created_at,
+                        "updated_at": user.updated_at
+                    }
+                return None
+        except Exception as e:
+            print(f"Error fetching user by email: {str(e)}")
+            return None
+
+    async def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """Get user by ID"""
+        try:
+            with get_db_context():
+                user = PeeweeUser.get_or_none(PeeweeUser.id == user_id)
+                if user:
+                    return {
+                        "id": user.id,
+                        "email": user.email,
+                        "hashed_password": user.hashed_password,
+                        "is_active": user.is_active,
+                        "created_at": user.created_at,
+                        "updated_at": user.updated_at
+                    }
+                return None
+        except Exception as e:
+            print(f"Error fetching user by id: {str(e)}")
+            return None
+
+    async def create_user(self, email: str, hashed_password: str) -> Optional[Dict[str, Any]]:
+        """Create a new user in the database"""
+        try:
+            with get_db_context():
+                # Check if user already exists
+                existing = PeeweeUser.get_or_none(PeeweeUser.email == email)
+                if existing:
+                    print(f"User already exists: {email}")
+                    return None
+
+                # Create new user
+                user = PeeweeUser.create(
+                    email=email,
+                    hashed_password=hashed_password,
+                    is_active=True
+                )
+
+                print(f"✅ Created new user: {email}")
+                return {
+                    "id": user.id,
+                    "email": user.email,
+                    "is_active": user.is_active,
+                    "created_at": user.created_at,
+                    "updated_at": user.updated_at
+                }
+        except Exception as e:
+            print(f"Error creating user: {str(e)}")
+            return None
+
+    async def update_user_password(self, user_id: str, hashed_password: str) -> bool:
+        """Update user password"""
+        try:
+            with get_db_context():
+                updated = PeeweeUser.update(
+                    hashed_password=hashed_password,
+                    updated_at=datetime.now()
+                ).where(PeeweeUser.id == user_id).execute()
+                return updated > 0
+        except Exception as e:
+            print(f"Error updating password: {str(e)}")
+            return False
+
+    async def deactivate_user(self, user_id: str) -> bool:
+        """Deactivate a user account"""
+        try:
+            with get_db_context():
+                updated = PeeweeUser.update(
+                    is_active=False,
+                    updated_at=datetime.now()
+                ).where(PeeweeUser.id == user_id).execute()
+                return updated > 0
+        except Exception as e:
+            print(f"Error deactivating user: {str(e)}")
+            return False
+
+    async def log_demo_usage(self, email: str, ip_address: Optional[str] = None) -> bool:
+        """Log demo user session for analytics"""
+        try:
+            with get_db_context():
+                PeeweeDemoUsage.create(
+                    user_email=email,
+                    ip_address=ip_address
+                )
+                print(f"📊 Demo usage logged for {email}")
+                return True
+        except Exception as e:
+            print(f"Error logging demo usage: {str(e)}")
+            return False
 
 
 # Dependency injection for FastAPI
