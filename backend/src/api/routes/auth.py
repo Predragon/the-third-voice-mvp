@@ -286,6 +286,161 @@ async def verify_token(
         }
 
 
+@router.post("/forgot-password")
+@limiter.limit("3/minute")
+async def forgot_password(
+    request: Request,
+    email: str
+) -> Dict[str, str]:
+    """
+    Request password reset email
+
+    Sends a reset link to the provided email if account exists
+    """
+    try:
+        logger.info(f"Password reset requested for: {email}")
+
+        # Don't allow password reset for demo accounts
+        if email == auth_manager.DEMO_USER["email"]:
+            return {
+                "message": "Password reset email sent if account exists",
+                "status": "success"
+            }
+
+        # Generate reset token and send email
+        success = await auth_manager.request_password_reset(email)
+
+        # Always return success to prevent email enumeration
+        logger.info(f"✅ Password reset processed for: {email}")
+        return {
+            "message": "Password reset email sent if account exists",
+            "status": "success"
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Password reset error for {email}: {str(e)}")
+        # Still return success to prevent enumeration
+        return {
+            "message": "Password reset email sent if account exists",
+            "status": "success"
+        }
+
+
+@router.post("/reset-password")
+@limiter.limit("5/minute")
+async def reset_password(
+    request: Request,
+    token: str,
+    new_password: str
+) -> Dict[str, str]:
+    """
+    Reset password using token from email
+    """
+    try:
+        logger.info("Password reset attempt with token")
+
+        if len(new_password) < 8:
+            raise ValidationException("Password must be at least 8 characters long")
+
+        success = await auth_manager.reset_password(token, new_password)
+
+        if success:
+            logger.info("✅ Password reset successful")
+            return {
+                "message": "Password reset successful. You can now login with your new password.",
+                "status": "success"
+            }
+        else:
+            logger.warning("❌ Password reset failed - invalid or expired token")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired reset token"
+            )
+
+    except ValidationException:
+        raise
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Password reset error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Password reset failed"
+        )
+
+
+@router.post("/send-verification")
+@limiter.limit("3/minute")
+async def send_verification_email(
+    request: Request,
+    current_user: UserResponse = Depends(get_current_user)
+) -> Dict[str, str]:
+    """
+    Send email verification link
+    """
+    try:
+        logger.info(f"Verification email requested for: {current_user.email}")
+
+        # Don't verify demo accounts
+        if auth_manager.is_demo_user(current_user):
+            return {
+                "message": "Demo accounts don't require verification",
+                "status": "info"
+            }
+
+        success = await auth_manager.send_verification_email(current_user.email)
+
+        logger.info(f"✅ Verification email sent to: {current_user.email}")
+        return {
+            "message": "Verification email sent",
+            "status": "success"
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error sending verification email: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not send verification email"
+        )
+
+
+@router.get("/verify-email/{token}")
+@limiter.limit("10/minute")
+async def verify_email(
+    request: Request,
+    token: str
+) -> Dict[str, str]:
+    """
+    Verify email using token from verification link
+    """
+    try:
+        logger.info("Email verification attempt with token")
+
+        success = await auth_manager.verify_email(token)
+
+        if success:
+            logger.info("✅ Email verified successfully")
+            return {
+                "message": "Email verified successfully",
+                "status": "success"
+            }
+        else:
+            logger.warning("❌ Email verification failed - invalid or expired token")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired verification token"
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Email verification error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Email verification failed"
+        )
+
+
 @router.get("/demo/stats")
 @limiter.limit("20/minute")
 async def get_demo_stats(

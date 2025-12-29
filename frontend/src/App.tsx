@@ -5,6 +5,8 @@ import type { User, Contact, TransformResult, InterpretResult } from './types';
 import ContactList from './components/ContactList';
 import MessageHistory from './components/MessageHistory';
 import Dashboard from './components/Dashboard';
+import ForgotPassword from './components/ForgotPassword';
+import FeedbackWidget, { FeedbackButton } from './components/FeedbackWidget';
 
 // Types
 interface AuthContextType {
@@ -18,7 +20,7 @@ interface AuthContextType {
 }
 
 type ProcessResult = TransformResult | InterpretResult;
-type ViewType = 'landing' | 'app' | 'contacts' | 'history' | 'auth' | 'dashboard';
+type ViewType = 'landing' | 'app' | 'contacts' | 'history' | 'auth' | 'dashboard' | 'forgot-password';
 
 // Auth Context
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -104,7 +106,7 @@ function useAuth(): AuthContextType {
 }
 
 // Auth Page
-function AuthPage({ onBack, onSuccess }: { onBack: () => void; onSuccess: () => void }) {
+function AuthPage({ onBack, onSuccess, onForgotPassword }: { onBack: () => void; onSuccess: () => void; onForgotPassword: () => void }) {
   const { login, register } = useAuth();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
@@ -194,6 +196,15 @@ function AuthPage({ onBack, onSuccess }: { onBack: () => void; onSuccess: () => 
             {loading ? 'Please wait...' : mode === 'login' ? 'Login' : 'Create Account'}
           </button>
         </form>
+
+        {mode === 'login' && (
+          <button
+            onClick={onForgotPassword}
+            className="w-full mt-3 text-blue-600 hover:text-blue-700 text-sm font-medium"
+          >
+            Forgot your password?
+          </button>
+        )}
 
         <button
           onClick={onBack}
@@ -468,6 +479,9 @@ function MainApp({ onViewHistory, onViewDashboard }: { onViewHistory: () => void
                   </div>
                 )}
                 {result.saved && <p className="mt-2 text-xs text-green-600">✓ Saved to history</p>}
+                <div className="mt-4 pt-4 border-t">
+                  <FeedbackWidget context="transform" minimal />
+                </div>
               </div>
             ) : isInterpretResult(result) ? (
               <div className="bg-white rounded-lg p-6 shadow-sm">
@@ -504,6 +518,9 @@ function MainApp({ onViewHistory, onViewDashboard }: { onViewHistory: () => void
                   </div>
                 )}
                 {result.saved && <p className="mt-4 text-xs text-green-600">✓ Saved to history</p>}
+                <div className="mt-4 pt-4 border-t">
+                  <FeedbackWidget context="interpret" minimal />
+                </div>
               </div>
             ) : null}
           </div>
@@ -567,6 +584,15 @@ function AppContent({
         <AuthPage
           onBack={() => setCurrentView('landing')}
           onSuccess={() => setCurrentView('app')}
+          onForgotPassword={() => setCurrentView('forgot-password')}
+        />
+      );
+
+    case 'forgot-password':
+      return (
+        <ForgotPassword
+          onBack={() => setCurrentView('auth')}
+          onSuccess={() => setCurrentView('auth')}
         />
       );
 
@@ -577,6 +603,7 @@ function AppContent({
             onViewHistory={() => setCurrentView('contacts')}
             onViewDashboard={() => setCurrentView('dashboard')}
           />
+          <FeedbackButton />
           <button
             onClick={() => setCurrentView('landing')}
             className="fixed bottom-4 left-4 bg-white text-gray-700 px-4 py-2 rounded-full shadow-lg hover:shadow-xl transition-shadow text-sm font-medium"

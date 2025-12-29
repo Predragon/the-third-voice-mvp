@@ -298,6 +298,121 @@ class AuthManager:
             print(f"Token refresh error: {str(e)}")
             return None
 
+    async def request_password_reset(self, email: str) -> bool:
+        """Request password reset - generates token and sends email"""
+        try:
+            if not self.db:
+                return False
+
+            # Check if user exists
+            user_data = await self.db.get_user_by_email(email)
+            if not user_data:
+                # Return True to prevent email enumeration, but don't actually send
+                return True
+
+            # Generate reset token (valid for 1 hour)
+            reset_token = self.create_access_token(
+                {"sub": user_data["id"], "type": "password_reset", "email": email},
+                expires_delta=timedelta(hours=1)
+            )
+
+            # Store reset token in database
+            await self.db.store_reset_token(user_data["id"], reset_token)
+
+            # Send email (placeholder - would integrate with email service)
+            print(f"📧 Password reset token for {email}: {reset_token[:20]}...")
+            # In production: send_email(email, reset_link=f"https://thethirdvoice.ai/reset?token={reset_token}")
+
+            return True
+        except Exception as e:
+            print(f"Password reset request error: {str(e)}")
+            return False
+
+    async def reset_password(self, token: str, new_password: str) -> bool:
+        """Reset password using token"""
+        try:
+            # Decode and validate token
+            payload = self.decode_token(token)
+
+            if payload.get("type") != "password_reset":
+                return False
+
+            user_id = payload.get("sub")
+            if not user_id or not self.db:
+                return False
+
+            # Hash new password and update
+            hashed_password = self.get_password_hash(new_password)
+            success = await self.db.update_user_password(user_id, hashed_password)
+
+            if success:
+                # Invalidate all existing sessions
+                await self.invalidate_user_sessions(user_id)
+                # Clear reset token
+                await self.db.clear_reset_token(user_id)
+
+            return success
+        except Exception as e:
+            print(f"Password reset error: {str(e)}")
+            return False
+
+    async def send_verification_email(self, email: str) -> bool:
+        """Send email verification link"""
+        try:
+            if not self.db:
+                return False
+
+            user_data = await self.db.get_user_by_email(email)
+            if not user_data:
+                return False
+
+            # Check if already verified
+            if user_data.get("email_verified", False):
+                return True
+
+            # Generate verification token (valid for 24 hours)
+            verify_token = self.create_access_token(
+                {"sub": user_data["id"], "type": "email_verify", "email": email},
+                expires_delta=timedelta(hours=24)
+            )
+
+            # Store verification token
+            await self.db.store_verification_token(user_data["id"], verify_token)
+
+            # Send email (placeholder)
+            print(f"📧 Verification token for {email}: {verify_token[:20]}...")
+            # In production: send_email(email, verify_link=f"https://thethirdvoice.ai/verify?token={verify_token}")
+
+            return True
+        except Exception as e:
+            print(f"Verification email error: {str(e)}")
+            return False
+
+    async def verify_email(self, token: str) -> bool:
+        """Verify email using token"""
+        try:
+            # Decode and validate token
+            payload = self.decode_token(token)
+
+            if payload.get("type") != "email_verify":
+                return False
+
+            user_id = payload.get("sub")
+            if not user_id or not self.db:
+                return False
+
+            # Mark email as verified
+            success = await self.db.verify_user_email(user_id)
+
+            if success:
+                # Clear verification token
+                await self.db.clear_verification_token(user_id)
+
+            return success
+        except Exception as e:
+            print(f"Email verification error: {str(e)}")
+            return False
+
     def get_demo_stats(self, user: UserResponse) -> Dict[str, Any]:
         """Get demo session statistics"""
         if not self.is_demo_user(user) or not self.db:

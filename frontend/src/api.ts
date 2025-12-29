@@ -166,6 +166,52 @@ class ThirdVoiceAPI {
       { method: 'GET' }
     );
   }
+
+  // Password reset
+  async forgotPassword(email: string): Promise<{ message: string; status: string }> {
+    return this._fetchWithFallback<{ message: string; status: string }>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    });
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string; status: string }> {
+    return this._fetchWithFallback<{ message: string; status: string }>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, new_password: newPassword })
+    });
+  }
+
+  // Email verification
+  async sendVerificationEmail(): Promise<{ message: string; status: string }> {
+    return this._fetchWithFallback<{ message: string; status: string }>('/auth/send-verification', {
+      method: 'POST'
+    });
+  }
+
+  async verifyEmail(token: string): Promise<{ message: string; status: string }> {
+    return this._fetchWithFallback<{ message: string; status: string }>(`/auth/verify-email/${token}`, {
+      method: 'GET'
+    });
+  }
+
+  // Feedback
+  async submitFeedback(rating: number, text?: string, category?: string): Promise<{ message: string; status: string }> {
+    return this._fetchWithFallback<{ message: string; status: string }>('/feedback/', {
+      method: 'POST',
+      body: JSON.stringify({
+        rating,
+        feedback_text: text,
+        feature_context: category || 'general'
+      })
+    });
+  }
+
+  async getFeedbackCategories(): Promise<Array<{ value: string; label: string; description: string }>> {
+    return this._fetchWithFallback<Array<{ value: string; label: string; description: string }>>('/feedback/categories', {
+      method: 'GET'
+    });
+  }
 }
 
 export const api = new ThirdVoiceAPI();
