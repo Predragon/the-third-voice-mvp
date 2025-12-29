@@ -1,5 +1,5 @@
 import { useState, createContext, useContext, useEffect, ReactNode } from 'react';
-import { MessageSquare, Lightbulb, Send, Sparkles, ArrowRight, Shield, Heart, Users, History, LogIn, LogOut, BarChart3 } from 'lucide-react';
+import { MessageSquare, Lightbulb, Send, Sparkles, ArrowRight, Shield, Heart, Users, History, LogIn, LogOut, BarChart3, Settings as SettingsIcon } from 'lucide-react';
 import api from './api';
 import type { User, Contact, TransformResult, InterpretResult } from './types';
 import ContactList from './components/ContactList';
@@ -7,6 +7,7 @@ import MessageHistory from './components/MessageHistory';
 import Dashboard from './components/Dashboard';
 import ForgotPassword from './components/ForgotPassword';
 import FeedbackWidget, { FeedbackButton } from './components/FeedbackWidget';
+import Settings from './components/Settings';
 
 // Types
 interface AuthContextType {
@@ -20,7 +21,7 @@ interface AuthContextType {
 }
 
 type ProcessResult = TransformResult | InterpretResult;
-type ViewType = 'landing' | 'app' | 'contacts' | 'history' | 'auth' | 'dashboard' | 'forgot-password';
+type ViewType = 'landing' | 'app' | 'contacts' | 'history' | 'auth' | 'dashboard' | 'forgot-password' | 'settings';
 
 // Auth Context
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -270,7 +271,7 @@ function LandingPage({ onTryDemo, onLogin }: { onTryDemo: () => void; onLogin: (
 }
 
 // Main App Interface
-function MainApp({ onViewHistory, onViewDashboard }: { onViewHistory: () => void; onViewDashboard: () => void }) {
+function MainApp({ onViewHistory, onViewDashboard, onViewSettings }: { onViewHistory: () => void; onViewDashboard: () => void; onViewSettings: () => void }) {
   const { user, isDemo, logout } = useAuth();
   const [message, setMessage] = useState('');
   const [mode, setMode] = useState<'transform' | 'interpret'>('transform');
@@ -354,6 +355,13 @@ function MainApp({ onViewHistory, onViewDashboard }: { onViewHistory: () => void
                   title="Message History"
                 >
                   <History className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={onViewSettings}
+                  className="p-2 text-gray-600 hover:text-blue-600 hover:bg-white rounded-lg transition-colors"
+                  title="Settings"
+                >
+                  <SettingsIcon className="w-5 h-5" />
                 </button>
                 <button
                   onClick={logout}
@@ -558,7 +566,7 @@ function AppContent({
   selectedContact: Contact | null;
   setSelectedContact: (contact: Contact | null) => void;
 }) {
-  const { startDemo } = useAuth();
+  const { user, isDemo, startDemo, logout } = useAuth();
 
   const handleTryDemo = async () => {
     try {
@@ -602,6 +610,7 @@ function AppContent({
           <MainApp
             onViewHistory={() => setCurrentView('contacts')}
             onViewDashboard={() => setCurrentView('dashboard')}
+            onViewSettings={() => setCurrentView('settings')}
           />
           <FeedbackButton />
           <button
@@ -648,6 +657,19 @@ function AppContent({
             setCurrentView('history');
           }}
           onBack={() => setCurrentView('app')}
+        />
+      );
+
+    case 'settings':
+      return (
+        <Settings
+          user={user}
+          isDemo={isDemo}
+          onBack={() => setCurrentView('app')}
+          onLogout={() => {
+            logout();
+            setCurrentView('landing');
+          }}
         />
       );
 
